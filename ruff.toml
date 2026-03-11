@@ -1,0 +1,29 @@
+# Enable Pyflakes and import sorting (I) features, along with error (E) rules.
+select = ["E", "F", "I"]
+
+# Disable F401 (unused import)
+ignore = ["F401"]
+
+# Enable autofix for selected rules.
+# fixable = ["ALL"]
+
+# Exclude commonly ignored directories.
+exclude = [
+    ".git",
+    ".mypy_cache",
+    "__pycache__",
+    "migrations",
+]
+
+# Set the line length limit.
+line-length = 120
+
+# Format imports
+[format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+quote-style = "double"
+
+# Configure per-file ignores.
+[per-file-ignores]
+"__init__.py" = ["F401"]
