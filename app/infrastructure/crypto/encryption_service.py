@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes, padding as sym_padding, serialization
+from cryptography.hazmat.primitives import hashes, padding as sym_padding
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 

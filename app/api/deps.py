@@ -18,9 +18,7 @@ Functions:
     get_session_service() -> SessionService: Get session service instance
     get_invoice_service() -> InvoiceService: Get invoice service instance
     get_status_service() -> StatusService: Get status service instance
-"""
 
-"""
 Dependency injection for services and repositories.
 
 This module provides:
@@ -41,6 +39,7 @@ Functions:
     get_invoice_service() -> InvoiceService: Get invoice service instance
     get_status_service() -> StatusService: Get status service instance
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
