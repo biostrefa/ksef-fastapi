@@ -118,9 +118,13 @@ class Invoice(DomainModel):
 
 
 class EncryptedInvoicePayload(DomainModel):
+    invoice_hash_sha256_base64: str
+    invoice_size: int
+
+    encrypted_invoice_hash_sha256_base64: str
+    encrypted_invoice_size: int
     encrypted_content_base64: str
-    content_hash_sha256: str
-    file_size: int = Field(..., ge=1)
+
     encryption_method: str
     checksum_algorithm: str = "SHA-256"
     metadata: dict = Field(default_factory=dict)

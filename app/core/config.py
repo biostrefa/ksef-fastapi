@@ -28,3 +28,14 @@ get_settings() -> Settings
 singleton / cached settings
 
 """
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    ...
+    ksef_context_identifier_type: str = "Nip"
+    ksef_context_identifier_value: str | None = None
+
+    ksef_auth_poll_attempts: int = 10
+    ksef_auth_poll_interval_seconds: float = 1.0

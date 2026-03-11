@@ -49,5 +49,6 @@ class SessionStatusSnapshot(DomainModel):
     status: KsefSessionStatus
     last_checked_at: datetime
     upo_available: bool = False
+    upo_reference_number: str | None = None
     last_error_code: str | None = None
     last_error_message: str | None = None
