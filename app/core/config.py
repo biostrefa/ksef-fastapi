@@ -30,10 +30,22 @@ singleton / cached settings
 """
 
 from pydantic_settings import BaseSettings
+from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    ...
+    app_name: str = "KSeF FastAPI Integration"
+    app_env: str = "development"
+    debug: bool = False
+    database_url: str
+    ksef_base_url: str = "https://ksef.mf.gov.pl"
+    ksef_timeout_seconds: int = 30
+    ksef_auth_mode: str = "token"
+    ksef_token_value: str | None = None
+    ksef_client_cert_path: str | None = None
+    ksef_client_cert_password: str | None = None
+    ksef_retry_attempts: int = 3
+    ksef_poll_interval_seconds: float = 2.0
     ksef_context_identifier_type: str = "Nip"
     ksef_context_identifier_value: str | None = None
     ksef_auth_poll_attempts: int = 10
@@ -42,3 +54,11 @@ class Settings(BaseSettings):
     ksef_xades_signing_cert_path: str
     ksef_private_key_path: str
     ksef_private_key_password: str | None = None
+
+    class Config:
+        env_file = ".env"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

@@ -60,7 +60,7 @@ from app.domain.validators.invoice_validator import InvoiceValidator
 from app.infrastructure.crypto.certificate_loader import CertificateLoader
 from app.infrastructure.crypto.encryption_service import EncryptionService
 from app.infrastructure.http.ksef_http_client import KsefHttpClient
-from app.infrastructure.persistence.db import async_session_maker
+from app.infrastructure.persistence.db import AsyncSessionFactory
 from app.infrastructure.persistence.repositories.audit_log_repository import (
     AuditLogRepository,
 )
@@ -90,7 +90,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
     This should be used as the base dependency for repository providers.
     """
-    async with async_session_maker() as session:
+    async with AsyncSessionFactory() as session:
         yield session
 
 
@@ -236,9 +236,7 @@ def get_xades_auth_strategy(
 
 
 def get_audit_service(
-    audit_log_repository: Annotated[
-        AuditLogRepository, Depends(get_audit_log_repository)
-    ],
+    audit_log_repository: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
 ) -> AuditService:
     """
     Create audit service.
@@ -298,9 +296,7 @@ def get_invoice_service(
     invoice_builder: Annotated[InvoiceFa3Builder, Depends(get_invoice_builder)],
     invoice_validator: Annotated[InvoiceValidator, Depends(get_invoice_validator)],
     invoice_mapper: Annotated[InvoiceMapper, Depends(get_invoice_mapper)],
-    ksef_response_mapper: Annotated[
-        KsefResponseMapper, Depends(get_ksef_response_mapper)
-    ],
+    ksef_response_mapper: Annotated[KsefResponseMapper, Depends(get_ksef_response_mapper)],
     audit_service: Annotated[AuditService, Depends(get_audit_service)],
 ) -> InvoiceService:
     """
@@ -327,9 +323,7 @@ def get_status_service(
     session_repository: Annotated[SessionRepository, Depends(get_session_repository)],
     invoice_repository: Annotated[InvoiceRepository, Depends(get_invoice_repository)],
     ksef_http_client: Annotated[KsefHttpClient, Depends(get_ksef_http_client)],
-    ksef_response_mapper: Annotated[
-        KsefResponseMapper, Depends(get_ksef_response_mapper)
-    ],
+    ksef_response_mapper: Annotated[KsefResponseMapper, Depends(get_ksef_response_mapper)],
     audit_service: Annotated[AuditService, Depends(get_audit_service)],
 ) -> StatusService:
     """

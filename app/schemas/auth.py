@@ -84,3 +84,32 @@ class AuthContextResponse(ApiModel):
     has_refresh_token: bool
     access_token_expires_at: datetime | None = None
     refresh_token_expires_at: datetime | None = None
+
+
+class AuthTokensResponse(ApiModel):
+    access_token: str
+    refresh_token: str | None = None
+    access_token_expires_at: datetime | None = None
+    refresh_token_expires_at: datetime | None = None
+    token_type: str = "Bearer"
+
+
+class TokenAuthenticateRequest(ApiModel):
+    company_id: UUID
+    environment: KsefEnvironment
+    token: str
+
+
+class XadesAuthenticateRequest(ApiModel):
+    company_id: UUID
+    environment: KsefEnvironment
+    signature: str
+    certificate_path: str | None = None
+    private_key_path: str | None = None
+    private_key_password: str | None = None
+
+
+class RefreshTokenRequest(ApiModel):
+    company_id: UUID
+    environment: KsefEnvironment
+    refresh_token: str

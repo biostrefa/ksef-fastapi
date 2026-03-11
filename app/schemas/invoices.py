@@ -110,9 +110,7 @@ class InvoicePayloadDto(ApiModel):
 
     @field_validator("lines")
     @classmethod
-    def validate_lines_non_empty(
-        cls, value: list[InvoiceLineItemDto]
-    ) -> list[InvoiceLineItemDto]:
+    def validate_lines_non_empty(cls, value: list[InvoiceLineItemDto]) -> list[InvoiceLineItemDto]:
         if not value:
             raise ValueError("invoice must contain at least one line")
         return value
@@ -127,6 +125,25 @@ class SendInvoiceRequest(ApiModel):
 
 
 class SendInvoiceResponse(ApiModel):
+    submission_id: UUID
+    company_id: UUID
+    session_reference_number: str
+    local_invoice_number: str
+    ksef_invoice_reference: str | None = None
+    status: InvoiceSubmissionStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class SubmitInvoiceRequest(ApiModel):
+    company_id: UUID
+    environment: str
+    invoice: InvoicePayloadDto
+    session_reference_number: str | None = None
+    auto_open_session: bool = True
+
+
+class SubmitInvoiceResponse(ApiModel):
     submission_id: UUID
     company_id: UUID
     session_reference_number: str
@@ -161,7 +178,43 @@ class InvoiceStatusResponse(ApiModel):
     error_message: str | None = None
 
 
-class UpoResponse(ApiModel):
+class InvoiceListResponse(ApiModel):
+    items: list[dict]
+    limit: int
+    offset: int
+    total: int
+
+
+class InvoiceXmlResponse(ApiModel):
+    submission_id: str
+    xml_content: str
+    content_type: str = "application/xml"
+
+
+class ResubmitInvoiceResponse(ApiModel):
+    submission_id: str
+    local_status: str
+    ksef_reference: str | None = None
+    error_message: str | None = None
+
+
+class InvoiceDetailsResponse(ApiModel):
+    submission_id: UUID
+    company_id: UUID
+    session_reference_number: str
+    local_invoice_number: str
+    ksef_invoice_reference: str | None = None
+    status: InvoiceSubmissionStatus
+    xml_hash_sha256: str | None = None
+    upo_available: bool = False
+    error_code: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    invoice_xml: str | None = None
+
+
+class InvoiceUpoResponse(ApiModel):
     submission_id: UUID | None = None
     session_reference_number: str | None = None
     upo_content: str

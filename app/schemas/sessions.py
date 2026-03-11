@@ -48,6 +48,20 @@ class OpenBatchSessionRequest(ApiModel):
     encryption: SessionEncryptionInfo | None = None
 
 
+class CreateBatchSessionRequest(ApiModel):
+    company_id: UUID
+    environment: KsefEnvironment
+    package_name: str | None = None
+    encryption: SessionEncryptionInfo | None = None
+
+
+class CreateOnlineSessionRequest(ApiModel):
+    company_id: UUID
+    environment: KsefEnvironment
+    reuse_open_session: bool = True
+    encryption: SessionEncryptionInfo | None = None
+
+
 class OpenSessionResponse(ApiModel):
     company_id: UUID
     environment: KsefEnvironment
@@ -89,3 +103,16 @@ class SessionStatusResponse(ApiModel):
     upo_reference_number: str | None = None
     last_error_code: str | None = None
     last_error_message: str | None = None
+
+
+class SessionUpoResponse(ApiModel):
+    reference_number: str
+    upo_content: str
+    content_type: str = "application/xml"
+    downloaded_at: datetime
+
+
+class SyncPendingStatusesResponse(ApiModel):
+    processed_sessions: int
+    processed_invoices: int
+    errors: list[str] = []
