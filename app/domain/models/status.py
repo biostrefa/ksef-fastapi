@@ -6,4 +6,10 @@ This module provides:
 - Local status models
 - Status transition logic
 - Status validation rules
+
+Enums / Classes:
+    LocalInvoiceStatus: Local invoice status enumeration
+    LocalSessionStatus: Local session status enumeration
+    KsefProcessingStatus: KSEF processing status enumeration
+    StatusTransitionRule: Status transition validation rules
 """
