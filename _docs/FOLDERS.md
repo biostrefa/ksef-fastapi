@@ -239,7 +239,7 @@ project-root/
 |   +-- versions/
 |   `-- env.py
 |
-+-- docs/
++-- _docs/
 |   |
 |   +-- architecture/
 |   |   +-- ksef_modules.md

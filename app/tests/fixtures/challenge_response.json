@@ -1,0 +1,6 @@
+{
+  "description": "Challenge response fixture for testing",
+  "purpose": "Mock KSeF challenge response data",
+  "contains": "Sample challenge and response pairs",
+  "usage": "Authentication flow testing"
+}

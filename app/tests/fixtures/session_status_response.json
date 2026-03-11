@@ -1,0 +1,6 @@
+{
+  "description": "Session status response fixture for testing",
+  "purpose": "Mock KSeF session status response data",
+  "contains": "Sample session status information",
+  "usage": "Session status testing"
+}
