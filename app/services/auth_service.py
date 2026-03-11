@@ -42,6 +42,21 @@ from app.schemas.auth import (
 
 
 class AuthService:
+    """
+    Finalny serwis auth dla KSeF 2.x, spięty z:
+    - TokenAuthStrategy
+    - XadesAuthStrategy
+    - KsefHttpClient
+    - TokenRepository
+
+    Flow:
+    1. challenge
+    2. init auth (token albo xades)
+    3. polling statusu auth
+    4. redeem access/refresh tokenów
+    5. zapis lokalny
+    """
+
     def __init__(
         self,
         *,
@@ -59,6 +74,7 @@ class AuthService:
 
     async def start_challenge(self, request: AuthChallengeRequest) -> AuthChallenge:
         payload = await self.ksef_http_client.get_challenge()
+
         return AuthChallenge(
             company_id=request.company_id,
             environment=request.environment,
@@ -67,6 +83,13 @@ class AuthService:
         )
 
     async def redeem(self, request: AuthTokenRedeemRequest) -> AuthTokenRedeemResponse:
+        """
+        Główna metoda logowania:
+        - inicjalizuje auth
+        - czeka na sukces
+        - redeemuje tokeny
+        - zapisuje je lokalnie
+        """
         if request.auth_mode == KsefAuthMode.TOKEN:
             init_result = await self._initialize_token_auth(
                 company_id=request.company_id,
@@ -78,7 +101,10 @@ class AuthService:
                 environment=request.environment,
             )
         else:
-            raise AuthenticationError(f"Unsupported auth mode: {request.auth_mode}")
+            raise AuthenticationError(
+                "Unsupported auth mode",
+                details={"auth_mode": str(request.auth_mode)},
+            )
 
         await self._wait_for_authentication_success(
             reference_number=init_result["reference_number"],
@@ -117,6 +143,7 @@ class AuthService:
             company_id=request.company_id,
             environment=request.environment,
         )
+
         refresh_token = request.refresh_token or (
             stored.refresh_token if stored else None
         )
@@ -124,8 +151,9 @@ class AuthService:
             raise AuthenticationError("Refresh token is missing")
 
         token_payload = await self.ksef_http_client.refresh_token(
-            refresh_token=refresh_token
+            refresh_token=refresh_token,
         )
+
         tokens = AuthTokens(
             access_token=token_payload["access_token"],
             refresh_token=token_payload.get("refresh_token") or refresh_token,
@@ -150,7 +178,9 @@ class AuthService:
         )
 
     async def get_auth_context(
-        self, company_id: UUID, environment: KsefEnvironment
+        self,
+        company_id: UUID,
+        environment: KsefEnvironment,
     ) -> AuthContextResponse:
         tokens = await self.token_repository.get_by_company(
             company_id=company_id,
@@ -185,17 +215,33 @@ class AuthService:
             company_id=company_id,
             environment=environment,
         )
+
         if stored:
             token = stored.refresh_token or stored.access_token
             if token:
                 await self.ksef_http_client.revoke_current_auth(
-                    access_or_refresh_token=token
+                    access_or_refresh_token=token,
                 )
 
         await self.token_repository.delete_by_company(
             company_id=company_id,
             environment=environment,
         )
+
+    async def get_valid_access_token(
+        self,
+        *,
+        company_id: UUID,
+        environment: KsefEnvironment,
+    ) -> str:
+        tokens = await self.token_repository.get_by_company(
+            company_id=company_id,
+            environment=environment,
+        )
+        if not tokens or not tokens.access_token:
+            raise AuthenticationError("No active access token for company/environment")
+
+        return tokens.access_token
 
     async def _initialize_token_auth(
         self,
@@ -238,14 +284,14 @@ class AuthService:
 
         challenge_payload = await self.ksef_http_client.get_challenge()
 
-        signed_xml = self.xades_strategy.build_signed_auth_request_xml(
+        payload = self.xades_strategy.build_auth_init_payload(
             challenge=challenge_payload["challenge"],
             context_identifier_type=self.settings.ksef_context_identifier_type,
             context_identifier_value=self.settings.ksef_context_identifier_value,
         )
 
         return await self.ksef_http_client.init_auth_xades_signature(
-            signed_xml=signed_xml,
+            signed_xml=payload["signed_xml"],
         )
 
     async def _wait_for_authentication_success(
@@ -266,6 +312,7 @@ class AuthService:
             )
 
             status_code = last_status.get("status_code")
+
             if status_code == 200:
                 return
 
