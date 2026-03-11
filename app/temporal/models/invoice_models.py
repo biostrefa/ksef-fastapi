@@ -10,12 +10,10 @@ This module provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from pydantic import BaseModel
 
 
-@dataclass
-class SendInvoiceOnlineInput:
+class SendInvoiceOnlineInput(BaseModel):
     invoice_id: str
     company_id: str
     environment: str
@@ -23,18 +21,16 @@ class SendInvoiceOnlineInput:
     correlation_id: str
 
 
-@dataclass
-class SendInvoiceOnlineResult:
+class SendInvoiceOnlineResult(BaseModel):
     invoice_id: str
     submission_id: str
     session_reference_number: str
-    invoice_reference_number: Optional[str]
+    invoice_reference_number: str | None = None
     final_status: str
-    upo_storage_key: Optional[str] = None
+    upo_storage_key: str | None = None
 
 
-@dataclass
-class SendInvoiceBatchInput:
+class SendInvoiceBatchInput(BaseModel):
     batch_id: str
     company_id: str
     environment: str
@@ -42,8 +38,7 @@ class SendInvoiceBatchInput:
     correlation_id: str
 
 
-@dataclass
-class SendInvoiceBatchResult:
+class SendInvoiceBatchResult(BaseModel):
     batch_id: str
     submission_id: str
     final_status: str

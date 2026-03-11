@@ -10,18 +10,16 @@ This module provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class ReconcilePendingInput:
-    company_id: str | None
+class ReconcilePendingInput(BaseModel):
+    company_id: str | None = None
     environment: str
     limit: int = 100
 
 
-@dataclass
-class ReconcilePendingResult:
+class ReconcilePendingResult(BaseModel):
     scanned: int
     updated: int
     failed: int

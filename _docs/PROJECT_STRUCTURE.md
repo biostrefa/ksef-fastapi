@@ -257,3 +257,219 @@ project-root/
 - Documentation for all public interfaces
 
 This structure provides a solid foundation for building a maintainable, scalable KSeF integration service while following best practices for FastAPI applications and clean architecture principles.
+
+## Complete Project Structure Graph
+
+```
+app/                                    # Main FastAPI application package
+│
+├── main.py                              # 🚀 Application entry point - FastAPI instance creation and middleware setup
+│
+├── core/                                # ⚙️ Core application infrastructure
+│   ├── config.py                        # 🔧 Environment settings and configuration management using Pydantic
+│   ├── logging.py                       # 📝 Structured logging configuration with sensitive data filtering
+│   ├── exceptions.py                     # ❌ Custom exception hierarchy and centralized error handling
+│   ├── constants.py                     # 🏷️ System-wide constants, enums, and shared values
+│   └── security.py                      # 🔐 Security utilities, data masking, and validation helpers
+│
+├── api/                                 # 🌐 HTTP API layer - external interface
+│   ├── deps.py                          # 🔗 FastAPI dependency injection setup for services and repositories
+│   └── routers/                         # 🛣️ FastAPI route handlers organized by functional domain
+│       ├── ksef_auth_router.py          # 🔑 KSeF authentication endpoints (login, challenge response)
+│       ├── ksef_session_router.py        # 🔄 KSeF session management endpoints (create, renew, status)
+│       ├── ksef_invoice_router.py        # 📄 Invoice submission and retrieval endpoints
+│       ├── ksef_status_router.py         # 📊 Status monitoring and polling endpoints
+│       └── webhook_router.py             # 🪝 Webhook and callback endpoint handlers
+│
+├── schemas/                             # 📋 API contract definitions
+│   ├── auth.py                          # 🔐 Authentication request/response models
+│   ├── sessions.py                      # 🔄 Session management data models
+│   ├── invoices.py                      # 📄 Invoice request/response models
+│   ├── common.py                        # 🔧 Shared models (pagination, responses, errors)
+│   └── errors.py                        # ❌ Error response models and status codes
+│
+├── domain/                              # 🧠 Business logic layer - pure domain logic
+│   ├── models/                          # 🏗️ Rich domain entities with business logic
+│   │   ├── invoice.py                   # 📄 Invoice domain model with validation rules
+│   │   ├── session.py                   # 🔄 KSeF session domain model
+│   │   ├── auth.py                      # 🔑 Authentication domain model
+│   │   └── status.py                    # 📊 Status enums and domain models
+│   ├── builders/                        # 🔨 Complex object construction patterns
+│   │   └── invoice_fa3_builder.py       # 📄 FA(3) XML generation and document building
+│   ├── validators/                      # ✅ Business rule validation logic
+│   │   ├── invoice_validator.py         # 📄 Invoice business rule validation
+│   │   └── tax_identifier_validator.py  # 🏷️ Tax ID format and validation rules
+│   ├── mappers/                         # 🔄 Data transformation between layers
+│   │   ├── invoice_mapper.py            # 📄 ERP to domain model mapping
+│   │   └── ksef_response_mapper.py     # 🔄 KSeF API response to domain mapping
+│   └── strategies/                      # 🎯 Strategy pattern for interchangeable approaches
+│       ├── auth_strategy_base.py        # 🔑 Base authentication strategy interface
+│       ├── xades_auth_strategy.py       # 📝 XAdES signature-based authentication
+│       └── token_auth_strategy.py       # 🎫 Token-based authentication strategy
+│
+├── services/                            # 🎬 Application services - use case orchestration
+│   ├── auth_service.py                  # 🔑 Authentication workflow orchestration
+│   ├── session_service.py               # 🔄 Session lifecycle management
+│   ├── invoice_service.py               # 📄 Invoice submission and retrieval workflows
+│   ├── status_service.py                # 📊 Status monitoring and polling logic
+│   ├── retry_service.py                 # 🔄 Retry mechanisms and failure recovery
+│   └── audit_service.py                 # 📋 Audit logging and compliance tracking
+│
+├── infrastructure/                      # 🏗️ External integrations and technical concerns
+│   ├── http/                            # 🌐 HTTP client implementations
+│   │   ├── base_client.py               # 🔧 Common HTTP functionality with retry logic
+│   │   └── ksef_http_client.py          # 🏛️ KSeF API client with authentication handling
+│   ├── crypto/                          # 🔐 Cryptographic operations
+│   │   ├── encryption_service.py         # 🔒 Encryption, decryption, and hashing operations
+│   │   └── certificate_loader.py        # 📜 Digital certificate handling and validation
+│   ├── persistence/                     # 💾 Database layer
+│   │   ├── db.py                        # 🗄️ Database configuration and connection management
+│   │   ├── models/                      # 📋 SQLAlchemy ORM models
+│   │   │   ├── token_model.py           # 🎫 Token storage model
+│   │   │   ├── session_model.py         # 🔄 Session storage model
+│   │   │   ├── invoice_submission_model.py # 📄 Invoice submission tracking model
+│   │   │   └── audit_log_model.py       # 📋 Audit log storage model
+│   │   └── repositories/                # 🏪 Data access layer (Repository pattern)
+│   │       ├── token_repository.py      # 🎫 Token CRUD operations
+│   │       ├── session_repository.py    # 🔄 Session CRUD operations
+│   │       ├── invoice_repository.py    # 📄 Invoice CRUD operations
+│   │       └── audit_log_repository.py  # 📋 Audit log CRUD operations
+│   └── adapters/                        # 🔌 External system integration adapters
+│       ├── erp_adapter.py               # 🏢 ERP system integration interface
+│       └── storage_adapter.py           # 📁 File storage integration interface
+│
+├── temporal/                            # ⏰ Temporal workflow orchestration layer
+│   ├── task_queues.py                   # 📋 Task queue configuration and routing
+│   ├── worker.py                        # 🏗️ Temporal worker setup and activity registration
+│   ├── models/                          # 🏗️ Temporal workflow and activity data models
+│   │   ├── common.py                     # 🔧 Shared temporal models and utilities
+│   │   ├── auth_models.py                # 🔑 Authentication workflow data models
+│   │   ├── session_models.py             # 🔄 Session management workflow models
+│   │   ├── invoice_models.py             # 📄 Invoice processing workflow models
+│   │   └── reconciliation_models.py      # ⚖️ Reconciliation workflow data models
+│   ├── workflows/                        # 🔄 Temporal workflow definitions
+│   │   ├── authenticate_to_mf_workflow.py       # 🔑 Ministry of Finance authentication workflow
+│   │   ├── send_invoice_online_workflow.py       # 📄 Online invoice submission workflow
+│   │   ├── send_invoice_batch_workflow.py        # 📦 Batch invoice submission workflow
+│   │   ├── reconcile_pending_submissions_workflow.py # ⚖️ Pending submission reconciliation workflow
+│   │   └── refresh_auth_context_workflow.py       # 🔄 Authentication context refresh workflow
+│   └── activities/                       # ⚡ Temporal activity implementations
+│       ├── auth_activities.py            # 🔑 Authentication-related activities
+│       ├── session_activities.py         # 🔄 Session management activities
+│       ├── invoice_activities.py         # 📄 Invoice processing activities
+│       ├── persistence_activities.py     # 💾 Database persistence activities
+│       ├── storage_activities.py         # 📁 File storage activities
+│       └── audit_activities.py           # 📋 Audit logging activities
+│
+├── workers/                             # ⚙️ Background processing
+│   ├── poll_ksef_statuses.py           # 📊 Background status polling worker
+│   └── retry_failed_submissions.py     # 🔄 Failed submission retry worker
+│
+├── utils/                               # 🛠️ Utility functions and helpers
+│   ├── xml_utils.py                     # 📄 XML processing and FA(3) format utilities
+│   ├── hash_utils.py                    # 🔢 Hash and checksum utilities for data integrity
+│   └── datetime_utils.py                # 📅 Date/time utilities for timezone handling
+│
+└── tests/                               # 🧪 Test suite
+    ├── unit/                            # 🔬 Unit tests (isolated component testing)
+    │   ├── test_invoice_builder.py      # 📄 Invoice builder unit tests
+    │   ├── test_invoice_validator.py    # ✅ Invoice validator unit tests
+    │   ├── test_auth_service.py         # 🔑 Authentication service unit tests
+    │   ├── test_session_service.py       # 🔄 Session service unit tests
+    │   └── test_status_service.py       # 📊 Status service unit tests
+    ├── integration/                     # 🔗 Integration tests (component interaction testing)
+    │   ├── test_ksef_http_client.py     # 🌐 KSeF HTTP client integration tests
+    │   ├── test_invoice_flow_online.py  # 📄 End-to-end invoice flow tests
+    │   └── test_auth_flow.py            # 🔑 Authentication flow integration tests
+    └── fixtures/                        # 📦 Test data and mock responses
+        ├── sample_fa3.xml               # 📄 Sample FA(3) XML format
+        ├── challenge_response.json      # 🔑 Sample KSeF challenge response
+        └── session_status_response.json # 🔄 Sample session status response
+```
+
+## Layer Responsibilities Summary
+
+### 🚀 **Entry Point** (`main.py`)
+- FastAPI application initialization
+- Middleware configuration
+- Router registration
+- Application lifecycle management
+
+### ⚙️ **Core Layer** (`app/core/`)
+- **Configuration**: Centralized settings management with validation
+- **Logging**: Structured logging with sensitive data protection
+- **Exceptions**: Custom exception hierarchy for consistent error handling
+- **Security**: Security utilities and data protection mechanisms
+- **Constants**: System-wide shared values and enumerations
+
+### 🌐 **API Layer** (`app/api/`)
+- **HTTP Interface**: RESTful endpoints for external communication
+- **Dependency Injection**: Service and repository dependency setup
+- **Request Handling**: Input validation, response formatting
+- **Error Mapping**: Domain exceptions to HTTP status codes
+
+### 📋 **Schema Layer** (`app/schemas/`)
+- **API Contracts**: Pydantic models for request/response validation
+- **Data Serialization**: JSON serialization/deserialization
+- **Validation Rules**: Input validation and sanitization
+- **Documentation**: Auto-generated OpenAPI documentation
+
+### 🧠 **Domain Layer** (`app/domain/`)
+- **Business Logic**: Pure domain logic without external dependencies
+- **Domain Models**: Rich entities with business behavior
+- **Validation**: Business rule enforcement
+- **Strategies**: Interchangeable business approaches (e.g., authentication methods)
+- **Builders**: Complex object construction (e.g., XML document generation)
+- **Mappers**: Data transformation between domain and external formats
+
+### 🎬 **Service Layer** (`app/services/`)
+- **Use Case Orchestration**: Business workflow coordination
+- **Transaction Management**: Ensuring data consistency
+- **External Service Coordination**: Managing interactions with external systems
+- **Business Workflows**: Multi-step business processes
+- **Audit & Compliance**: Business operation tracking
+
+### 🏗️ **Infrastructure Layer** (`app/infrastructure/`)
+- **HTTP Clients**: External API communication with retry logic
+- **Cryptographic Operations**: Encryption, signing, certificate handling
+- **Database Persistence**: ORM models, repositories, connection management
+- **External Adapters**: Integration with ERP systems, file storage
+- **Technical Concerns**: Implementation details separated from business logic
+
+### ⏰ **Temporal Layer** (`app/temporal/`)
+- **Workflow Orchestration**: Temporal workflow definitions for complex business processes
+- **Activity Implementation**: Individual activity tasks that can be composed into workflows
+- **Durable Execution**: Reliable, retryable, and scalable workflow execution
+- **State Management**: Workflow state persistence and recovery
+- **Task Queues**: Workflow and activity task routing and configuration
+
+### ⚙️ **Workers Layer** (`app/workers/`)
+- **Background Processing**: Long-running operations outside request cycle
+- **Status Polling**: Monitoring external system status changes
+- **Retry Logic**: Automatic retry for failed operations
+- **Queue Management**: Decoupled asynchronous processing
+
+### 🛠️ **Utils Layer** (`app/utils/`)
+- **XML Processing**: FA(3) format handling and XML manipulation
+- **Hash Utilities**: Data integrity verification and checksums
+- **Date/Time**: Timezone handling, formatting, and calculations
+
+### 🧪 **Test Layer** (`app/tests/`)
+- **Unit Tests**: Isolated component testing with mocked dependencies
+- **Integration Tests**: End-to-end workflow validation
+- **Fixtures**: Consistent test data and mock responses
+- **Test Coverage**: Comprehensive validation of all layers
+
+## Data Flow Architecture
+
+```
+🌐 API Layer → 🎬 Service Layer → 🧠 Domain Layer → 🏗️ Infrastructure Layer
+     ↓              ↓                ↓                   ↓
+📋 Schemas    🔄 Orchestration   🏗️ Business Logic  💾 External Systems
+     ↓              ↓                ↓                   ↓
+🔍 Validation  ✅ Workflows      📋 Domain Models   🗄️ Database/API
+     ↓              ↓                ↓                   ↓
+⏰ Temporal ← → 🎯 Long-running Processes ← → 🔄 State Management
+```
+
+This structure provides a clean separation of concerns, making the application maintainable, testable, and scalable while following clean architecture principles and SOLID design patterns.

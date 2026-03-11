@@ -10,33 +10,28 @@ This module provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from pydantic import BaseModel
 
 
-@dataclass
-class EnsureAuthInput:
+class EnsureAuthInput(BaseModel):
     company_id: str
     environment: str
     auth_mode: str = "token"
 
 
-@dataclass
-class EnsureAuthResult:
+class EnsureAuthResult(BaseModel):
     auth_context_id: str
     access_token: str
-    refresh_token: Optional[str]
-    expires_at_utc: Optional[str]
+    refresh_token: str | None = None
+    expires_at_utc: str | None = None
     session_encryption: dict | None = None
 
 
-@dataclass
-class RefreshAuthInput:
+class RefreshAuthInput(BaseModel):
     auth_context_id: str
 
 
-@dataclass
-class RefreshAuthResult:
+class RefreshAuthResult(BaseModel):
     auth_context_id: str
     access_token: str
-    expires_at_utc: Optional[str]
+    expires_at_utc: str | None = None

@@ -10,12 +10,10 @@ This module provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from pydantic import BaseModel
 
 
-@dataclass
-class OpenOnlineSessionInput:
+class OpenOnlineSessionInput(BaseModel):
     company_id: str
     environment: str
     access_token: str
@@ -23,27 +21,23 @@ class OpenOnlineSessionInput:
     encryption: dict
 
 
-@dataclass
-class OpenOnlineSessionResult:
+class OpenOnlineSessionResult(BaseModel):
     reference_number: str
     status_code: int | None = None
     status_description: str | None = None
 
 
-@dataclass
-class CloseOnlineSessionInput:
+class CloseOnlineSessionInput(BaseModel):
     session_reference_number: str
     access_token: str
 
 
-@dataclass
-class SessionStatusInput:
+class SessionStatusInput(BaseModel):
     session_reference_number: str
     access_token: str
 
 
-@dataclass
-class SessionStatusResult:
+class SessionStatusResult(BaseModel):
     reference_number: str
     status_code: int | None = None
     status_description: str | None = None

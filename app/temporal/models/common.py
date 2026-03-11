@@ -10,9 +10,9 @@ This module provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import timedelta
 
+from pydantic import BaseModel
 from temporalio.common import RetryPolicy
 
 
@@ -37,8 +37,7 @@ DEFAULT_ACTIVITY_RETRY_POLICY = RetryPolicy(
 )
 
 
-@dataclass
-class WorkflowErrorInfo:
+class WorkflowErrorInfo(BaseModel):
     code: str
     message: str
     retryable: bool = False
