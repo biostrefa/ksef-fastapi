@@ -20,3 +20,34 @@ Classes:
         - status: Session status at snapshot time
         - last_checked_at: Last status check timestamp
 """
+
+from __future__ import annotations
+
+from datetime import datetime
+from uuid import UUID
+
+from app.core.constants import KsefEnvironment, KsefSessionStatus, KsefSessionType
+from app.domain.models.auth import DomainModel
+
+
+class KsefSession(DomainModel):
+    id: UUID
+    company_id: UUID
+    environment: KsefEnvironment
+    session_type: KsefSessionType
+    reference_number: str
+    status: KsefSessionStatus
+    opened_at: datetime | None = None
+    closed_at: datetime | None = None
+    last_checked_at: datetime | None = None
+    last_error_code: str | None = None
+    last_error_message: str | None = None
+
+
+class SessionStatusSnapshot(DomainModel):
+    reference_number: str
+    status: KsefSessionStatus
+    last_checked_at: datetime
+    upo_available: bool = False
+    last_error_code: str | None = None
+    last_error_message: str | None = None
