@@ -34,20 +34,6 @@ class SessionEncryptionInfo(ApiModel):
     checksum_algorithm: str = Field(default="SHA-256")
 
 
-class OpenOnlineSessionRequest(ApiModel):
-    company_id: UUID
-    environment: KsefEnvironment
-    reuse_open_session: bool = True
-    encryption: SessionEncryptionInfo | None = None
-
-
-class OpenBatchSessionRequest(ApiModel):
-    company_id: UUID
-    environment: KsefEnvironment
-    package_name: str | None = None
-    encryption: SessionEncryptionInfo | None = None
-
-
 class CreateBatchSessionRequest(ApiModel):
     company_id: UUID
     environment: KsefEnvironment

@@ -59,8 +59,8 @@ from app.infrastructure.persistence.models.audit_log_model import (
 )
 from app.schemas.sessions import (
     CloseSessionResponse,
-    OpenBatchSessionRequest,
-    OpenOnlineSessionRequest,
+    CreateBatchSessionRequest,
+    CreateOnlineSessionRequest,
     OpenSessionResponse,
     SessionResponse,
 )
@@ -107,7 +107,7 @@ class SessionService:
 
     async def create_online_session(
         self,
-        request: OpenOnlineSessionRequest,
+        request: CreateOnlineSessionRequest,
     ) -> OpenSessionResponse:
         """
         Backward-compatible alias.
@@ -116,7 +116,7 @@ class SessionService:
 
     async def create_batch_session(
         self,
-        request: OpenBatchSessionRequest,
+        request: CreateBatchSessionRequest,
     ) -> OpenSessionResponse:
         """
         Backward-compatible alias.
@@ -125,7 +125,7 @@ class SessionService:
 
     async def open_online_session(
         self,
-        request: OpenOnlineSessionRequest,
+        request: CreateOnlineSessionRequest,
     ) -> OpenSessionResponse:
         """
         Open KSeF online session.
@@ -163,9 +163,7 @@ class SessionService:
                 environment=request.environment,
             )
 
-            session_material = (
-                self.encryption_service.create_session_encryption_material()
-            )
+            session_material = self.encryption_service.create_session_encryption_material()
             payload = self._build_online_session_payload(
                 request=request,
                 session_material=session_material,
@@ -197,9 +195,7 @@ class SessionService:
             saved = await self._persist_opened_session(
                 session=session,
                 valid_until=valid_until,
-                session_encryption_context=self.encryption_service.export_session_material(
-                    session_material
-                ),
+                session_encryption_context=self.encryption_service.export_session_material(session_material),
                 remote_response_json=self._model_dump(raw_response),
             )
 
@@ -220,7 +216,7 @@ class SessionService:
 
     async def open_batch_session(
         self,
-        request: OpenBatchSessionRequest,
+        request: CreateBatchSessionRequest,
     ) -> OpenSessionResponse:
         """
         Open KSeF batch session.
@@ -247,9 +243,7 @@ class SessionService:
                 environment=request.environment,
             )
 
-            session_material = (
-                self.encryption_service.create_session_encryption_material()
-            )
+            session_material = self.encryption_service.create_session_encryption_material()
             payload = self._build_batch_session_payload(
                 request=request,
                 session_material=session_material,
@@ -281,9 +275,7 @@ class SessionService:
             saved = await self._persist_opened_session(
                 session=session,
                 valid_until=valid_until,
-                session_encryption_context=self.encryption_service.export_session_material(
-                    session_material
-                ),
+                session_encryption_context=self.encryption_service.export_session_material(session_material),
                 remote_response_json=self._model_dump(raw_response),
             )
 
@@ -407,16 +399,15 @@ class SessionService:
             return existing
 
         response = await self.open_online_session(
-            OpenOnlineSessionRequest(
+            CreateOnlineSessionRequest(
                 company_id=company_id,
                 environment=environment,
                 reuse_open_session=True,
-            )
+                encryption=None,
+            ),
         )
 
-        created = await self.session_repository.get_by_reference(
-            response.reference_number
-        )
+        created = await self.session_repository.get_by_reference(response.reference_number)
         if not created:
             raise SessionNotFoundError(
                 message="Session created remotely but not found locally.",
@@ -483,11 +474,11 @@ class SessionService:
     def _build_online_session_payload(
         self,
         *,
-        request: OpenOnlineSessionRequest,
+        request: CreateOnlineSessionRequest,
         session_material: Any,
     ) -> dict[str, Any]:
         """
-        Build OpenOnlineSessionRequest payload for KSeF.
+        Build CreateOnlineSessionRequest payload for KSeF.
         """
         payload: dict[str, Any] = {
             "formCode": self._build_form_code(),
@@ -502,11 +493,11 @@ class SessionService:
     def _build_batch_session_payload(
         self,
         *,
-        request: OpenBatchSessionRequest,
+        request: CreateBatchSessionRequest,
         session_material: Any,
     ) -> dict[str, Any]:
         """
-        Build OpenBatchSessionRequest payload for KSeF.
+        Build CreateBatchSessionRequest payload for KSeF.
         """
         batch_file = getattr(request, "batch_file", None)
         if batch_file is None:
@@ -531,9 +522,7 @@ class SessionService:
         Build KSeF formCode from settings.
         """
         return {
-            "systemCode": getattr(
-                self.settings, "ksef_form_code_system_code", "FA (3)"
-            ),
+            "systemCode": getattr(self.settings, "ksef_form_code_system_code", "FA (3)"),
             "schemaVersion": getattr(
                 self.settings,
                 "ksef_form_code_schema_version",
@@ -646,9 +635,7 @@ class SessionService:
             return value.dict(exclude_none=True)
 
         if hasattr(value, "__dict__"):
-            return {
-                key: val for key, val in vars(value).items() if not key.startswith("_")
-            }
+            return {key: val for key, val in vars(value).items() if not key.startswith("_")}
 
         raise ValidationError(
             message="Unsupported object type for serialization.",
