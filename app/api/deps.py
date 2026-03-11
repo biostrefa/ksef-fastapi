@@ -20,8 +20,6 @@ Functions:
     get_status_service() -> StatusService: Get status service instance
 """
 
-from __future__ import annotations
-
 """
 Dependency injection for services and repositories.
 
@@ -43,6 +41,7 @@ Functions:
     get_invoice_service() -> InvoiceService: Get invoice service instance
     get_status_service() -> StatusService: Get status service instance
 """
+from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from functools import lru_cache
@@ -101,7 +100,7 @@ def get_certificate_loader(settings: SettingsDep) -> CertificateLoader:
     Create certificate/key material loader used by auth and encryption layers.
     """
     return CertificateLoader(
-        public_cert_path=settings.ksef_public_cert_path,
+        mf_public_encryption_cert_path=settings.ksef_mf_public_encryption_cert_path,
         private_key_path=settings.ksef_private_key_path,
         private_key_password=settings.ksef_private_key_password,
         xades_signing_cert_path=settings.ksef_xades_signing_cert_path,
