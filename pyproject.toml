@@ -15,7 +15,7 @@ dependencies = [
     "python-keycloak>=7.1.1",
     "requests>=2.32.5",
     "slowapi>=0.1.9",
-    "sqlalchemy[postgresql-asyncpg]>=2.0.48",
+    "sqlalchemy[aiosqlite]>=2.0.48",
 ]
 
 [dependency-groups]

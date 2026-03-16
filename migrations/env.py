@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -6,6 +8,13 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+
+# Add the app directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from app.core.config import get_settings
+from app.infrastructure.persistence.db import Base
+from app.infrastructure.persistence.models import *  # noqa: F403,F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -18,14 +27,18 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+
+def get_url() -> str:
+    """Get database URL from settings."""
+    settings = get_settings()
+    return settings.database_url
 
 
 def run_migrations_offline() -> None:
@@ -64,9 +77,11 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
 
     """
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = get_url()
 
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
