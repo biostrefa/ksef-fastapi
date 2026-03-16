@@ -17,29 +17,28 @@ from typing import Any
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from app.temporal.activities.audit_activities import AuditActivities
+from app.temporal.activities.auth_activities import AuthActivities
+from app.temporal.activities.invoice_activities import InvoiceActivities
+from app.temporal.activities.persistence_activities import PersistenceActivities
+from app.temporal.activities.session_activities import SessionActivities
+from app.temporal.activities.storage_activities import StorageActivities
 from app.temporal.task_queues import (
     KSEF_AUTH_TQ,
     KSEF_COMMANDS_TQ,
     KSEF_RECONCILIATION_TQ,
 )
 from app.temporal.workflows.authenticate_to_mf_workflow import AuthenticateToMfWorkflow
-from app.temporal.workflows.refresh_auth_context_workflow import (
-    RefreshAuthContextWorkflow,
-)
-from app.temporal.workflows.send_invoice_online_workflow import (
-    SendInvoiceOnlineWorkflow,
-)
-from app.temporal.workflows.send_invoice_batch_workflow import SendInvoiceBatchWorkflow
 from app.temporal.workflows.reconcile_pending_submissions_workflow import (
     ReconcilePendingSubmissionsWorkflow,
 )
-
-from app.temporal.activities.auth_activities import AuthActivities
-from app.temporal.activities.session_activities import SessionActivities
-from app.temporal.activities.invoice_activities import InvoiceActivities
-from app.temporal.activities.persistence_activities import PersistenceActivities
-from app.temporal.activities.storage_activities import StorageActivities
-from app.temporal.activities.audit_activities import AuditActivities
+from app.temporal.workflows.refresh_auth_context_workflow import (
+    RefreshAuthContextWorkflow,
+)
+from app.temporal.workflows.send_invoice_batch_workflow import SendInvoiceBatchWorkflow
+from app.temporal.workflows.send_invoice_online_workflow import (
+    SendInvoiceOnlineWorkflow,
+)
 
 
 @dataclass(frozen=True)
@@ -145,32 +144,33 @@ async def run_reconciliation_worker(
 #
 
 if __name__ == "__main__":
-    from app.infrastructure.http.ksef_http_client import KsefApiConfig, KsefHttpClient
-    from app.infrastructure.persistence.db import AsyncSessionLocal
     from app.infrastructure.persistence.repositories.auth_context_repository import (
         AuthContextRepository,
     )
     from app.infrastructure.persistence.repositories.submission_repository import (
         SubmissionRepository,
     )
+    from app.somewhere.audit_log_repository import AuditLogRepository
+    from app.somewhere.blob_storage import BlobStorage
+    from app.somewhere.credential_provider import CredentialProvider
+    from app.somewhere.encryption_service import EncryptionService
+    from app.somewhere.invoice_fa3_builder import InvoiceFa3Builder
 
     # Replace these placeholders with real classes from your project.
     from app.somewhere.invoice_repository import SqlAlchemyInvoiceRepository
     from app.somewhere.invoice_validator import InvoiceValidator
-    from app.somewhere.invoice_fa3_builder import InvoiceFa3Builder
-    from app.somewhere.encryption_service import EncryptionService
-    from app.somewhere.credential_provider import CredentialProvider
     from app.somewhere.token_encryption_service import TokenEncryptionService
-    from app.somewhere.blob_storage import BlobStorage
-    from app.somewhere.audit_log_repository import AuditLogRepository
+
+    from app.core.config import get_settings
+    from app.infrastructure.http.ksef_http_client import KsefApiConfig, KsefHttpClient
+    from app.infrastructure.persistence.db import AsyncSessionLocal
 
     async def _main() -> None:
         settings = WorkerSettings()
+        app_settings = get_settings()
         client = await build_client(settings)
 
-        ksef_http_client = KsefHttpClient(
-            KsefApiConfig(base_url="https://api.ksef.mf.gov.pl/v2")
-        )
+        ksef_http_client = KsefHttpClient(KsefApiConfig(base_url=app_settings.ksef_base_url))
 
         auth_context_repository = AuthContextRepository(AsyncSessionLocal)
         submission_repository = SubmissionRepository(AsyncSessionLocal)

@@ -5,7 +5,7 @@ select = ["E", "F", "I"]
 ignore = ["F401"]
 
 # Enable autofix for selected rules.
-# fixable = ["ALL"]
+fixable = ["ALL"]
 
 # Exclude commonly ignored directories.
 exclude = [
@@ -27,3 +27,11 @@ quote-style = "double"
 # Configure per-file ignores.
 [per-file-ignores]
 "__init__.py" = ["F401"]
+
+# Import sorting configuration
+[lint.isort]
+required-imports = ["from __future__ import annotations"]
+split-on-trailing-comma = true
+combine-as-imports = true
+force-sort-within-sections = true
+order-by-type = true

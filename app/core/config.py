@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     database_url: str
-    ksef_base_url: str = "https://ksef.mf.gov.pl"
+    ksef_base_url: str
     ksef_timeout_seconds: int = 30
     ksef_auth_mode: str = "token"
     ksef_token_value: str | None = None
