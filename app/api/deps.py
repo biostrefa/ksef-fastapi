@@ -79,7 +79,6 @@ from app.services.invoice_service import InvoiceService
 from app.services.session_service import SessionService
 from app.services.status_service import StatusService
 
-
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DbSessionDep = Annotated[AsyncSession, Depends(lambda: get_db_session())]
 
@@ -189,9 +188,7 @@ def get_ksef_http_client(settings: SettingsDep) -> KsefHttpClient:
     return KsefHttpClient(
         base_url=settings.ksef_base_url,
         timeout_seconds=settings.ksef_timeout_seconds,
-        environment=settings.ksef_environment,
-        user_agent=settings.ksef_user_agent,
-        verify_ssl=settings.ksef_verify_ssl,
+        default_headers={"User-Agent": settings.ksef_user_agent},
     )
 
 
@@ -211,27 +208,25 @@ def get_encryption_service(
 
 def get_token_auth_strategy(
     settings: SettingsDep,
+    certificate_loader: Annotated[CertificateLoader, Depends(get_certificate_loader)],
 ) -> AuthStrategyBase:
     """
     Create token-based auth strategy.
     """
     return TokenAuthStrategy(
-        token_header_name=settings.ksef_token_header_name,
+        token_value=settings.ksef_token_value or "",
+        certificate_pem=certificate_loader.load_certificate(),
     )
 
 
 def get_xades_auth_strategy(
     settings: SettingsDep,
-    certificate_loader: Annotated[CertificateLoader, Depends(get_certificate_loader)],
 ) -> AuthStrategyBase:
     """
     Create XAdES-based auth strategy.
     """
     return XadesAuthStrategy(
-        certificate_loader=certificate_loader,
-        signature_canonicalization_method=settings.ksef_xades_canonicalization_method,
-        signature_digest_method=settings.ksef_xades_digest_method,
-        signature_method=settings.ksef_xades_signature_method,
+        signer=lambda unsigned_xml: unsigned_xml,
     )
 
 
@@ -248,7 +243,6 @@ def get_auth_service(
     settings: SettingsDep,
     token_repository: Annotated[TokenRepository, Depends(get_token_repository)],
     ksef_http_client: Annotated[KsefHttpClient, Depends(get_ksef_http_client)],
-    audit_service: Annotated[AuditService, Depends(get_audit_service)],
     token_auth_strategy: Annotated[AuthStrategyBase, Depends(get_token_auth_strategy)],
     xades_auth_strategy: Annotated[AuthStrategyBase, Depends(get_xades_auth_strategy)],
 ) -> AuthService:
@@ -259,9 +253,8 @@ def get_auth_service(
         settings=settings,
         token_repository=token_repository,
         ksef_http_client=ksef_http_client,
-        audit_service=audit_service,
         token_auth_strategy=token_auth_strategy,
-        xades_auth_strategy=xades_auth_strategy,
+        xades_strategy=xades_auth_strategy,
     )
 
 

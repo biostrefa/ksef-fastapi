@@ -5,15 +5,19 @@ This module contains the main application setup, router registration,
 and lifespan management for startup and shutdown events.
 """
 
-from fastapi import FastAPI
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 
 # Import routers
 from app.api.routers import (
+    auth_testing_router,
     health_router,
     ksef_auth_router,
-    ksef_session_router,
     ksef_invoice_router,
+    ksef_session_router,
     ksef_status_router,
     webhook_router,
 )
@@ -23,7 +27,7 @@ from app.api.routers import (
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager.
-    
+
     Handles startup and shutdown events including:
     - Database connections
     - Background workers
@@ -48,6 +52,7 @@ app.include_router(ksef_session_router.router, prefix="/api/sessions", tags=["ks
 app.include_router(ksef_invoice_router.router, prefix="/api/invoices", tags=["ksef-invoices"])
 app.include_router(ksef_status_router.router, prefix="/api/status", tags=["ksef-status"])
 app.include_router(webhook_router.router, prefix="/api/webhooks", tags=["webhooks"])
+app.include_router(auth_testing_router.router, prefix="/api", tags=["auth-testing"])
 
 
 @app.get("/")

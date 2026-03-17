@@ -15,20 +15,24 @@ Endpoint Functions:
     revoke_auth(...) -> OperationResult: Revoke authentication
 """
 
+from __future__ import annotations
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
 from app.api.deps import get_auth_service
+from app.core.constants import KsefAuthMode, KsefEnvironment
 from app.schemas.auth import (
     AuthChallengeRequest,
     AuthChallengeResponse,
     AuthContextResponse,
-    AuthTokensResponse,
+    AuthRefreshRequest,
+    AuthRefreshResponse,
+    AuthTokenRedeemRequest,
+    AuthTokenRedeemResponse,
     RefreshTokenRequest,
     RevokeAuthRequest,
-    TokenAuthenticateRequest,
-    XadesAuthenticateRequest,
 )
 from app.services.auth_service import AuthService
 
@@ -48,46 +52,64 @@ async def create_challenge(
     payload: AuthChallengeRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> AuthChallengeResponse:
-    return await auth_service.create_challenge(payload)
+    return await auth_service.start_challenge(payload)
 
 
 @router.post(
     "/authenticate/token",
-    response_model=AuthTokensResponse,
+    response_model=AuthTokenRedeemResponse,
     status_code=status.HTTP_200_OK,
     summary="Authenticate in KSeF using KSeF token strategy",
 )
 async def authenticate_with_token(
-    payload: TokenAuthenticateRequest,
+    payload: AuthChallengeRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> AuthTokensResponse:
-    return await auth_service.authenticate_with_token(payload)
+) -> AuthTokenRedeemResponse:
+    return await auth_service.redeem(
+        AuthTokenRedeemRequest(
+            company_id=payload.company_id,
+            environment=payload.environment,
+            auth_mode=KsefAuthMode.TOKEN,
+        )
+    )
 
 
 @router.post(
     "/authenticate/xades",
-    response_model=AuthTokensResponse,
+    response_model=AuthTokenRedeemResponse,
     status_code=status.HTTP_200_OK,
     summary="Authenticate in KSeF using XAdES signature strategy",
 )
 async def authenticate_with_xades(
-    payload: XadesAuthenticateRequest,
+    payload: AuthChallengeRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> AuthTokensResponse:
-    return await auth_service.authenticate_with_xades(payload)
+) -> AuthTokenRedeemResponse:
+    return await auth_service.redeem(
+        AuthTokenRedeemRequest(
+            company_id=payload.company_id,
+            environment=payload.environment,
+            auth_mode=KsefAuthMode.XADES,
+        )
+    )
 
 
 @router.post(
     "/refresh",
-    response_model=AuthTokensResponse,
+    response_model=AuthRefreshResponse,
     status_code=status.HTTP_200_OK,
     summary="Refresh KSeF access token",
 )
 async def refresh_access_token(
     payload: RefreshTokenRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> AuthTokensResponse:
-    return await auth_service.refresh_access_token(payload)
+) -> AuthRefreshResponse:
+    return await auth_service.refresh(
+        AuthRefreshRequest(
+            company_id=payload.company_id,
+            environment=payload.environment,
+            refresh_token=payload.refresh_token,
+        )
+    )
 
 
 @router.get(
@@ -97,10 +119,16 @@ async def refresh_access_token(
     summary="Get current local KSeF auth context",
 )
 async def get_auth_context(
-    tenant_id: str,
+    company_id: str,
+    environment: KsefEnvironment,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> AuthContextResponse:
-    return await auth_service.get_auth_context(tenant_id=tenant_id)
+    from uuid import UUID
+
+    return await auth_service.get_auth_context(
+        company_id=UUID(company_id),
+        environment=environment,
+    )
 
 
 @router.delete(
@@ -112,5 +140,8 @@ async def revoke_auth_context(
     payload: RevokeAuthRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> Response:
-    await auth_service.revoke_auth_context(payload)
+    await auth_service.revoke(
+        company_id=payload.company_id,
+        environment=payload.environment,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

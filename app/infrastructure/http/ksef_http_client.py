@@ -44,9 +44,7 @@ class KsefHttpClient(BaseHttpClient):
     """
 
     @staticmethod
-    def _pick_token_node(
-        payload: dict[str, Any], key: str
-    ) -> tuple[str | None, str | None]:
+    def _pick_token_node(payload: dict[str, Any], key: str) -> tuple[str | None, str | None]:
         node = payload.get(key) or {}
         if not isinstance(node, dict):
             return None, None
@@ -72,12 +70,28 @@ class KsefHttpClient(BaseHttpClient):
             "start_date": payload.get("startDate"),
         }
 
+    @staticmethod
+    def _normalize_ksef_token_create(payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "reference_number": payload.get("referenceNumber"),
+            "token": payload.get("token"),
+        }
+
+    @staticmethod
+    def _normalize_ksef_token_status(payload: dict[str, Any]) -> dict[str, Any]:
+        status = payload.get("status") or {}
+        return {
+            "reference_number": payload.get("referenceNumber"),
+            "description": payload.get("description"),
+            "status_code": status.get("code"),
+            "status_description": status.get("description"),
+            "status_details": status.get("details") or [],
+        }
+
     @classmethod
     def _normalize_auth_tokens(cls, payload: dict[str, Any]) -> dict[str, Any]:
         access_token, access_valid_until = cls._pick_token_node(payload, "accessToken")
-        refresh_token, refresh_valid_until = cls._pick_token_node(
-            payload, "refreshToken"
-        )
+        refresh_token, refresh_valid_until = cls._pick_token_node(payload, "refreshToken")
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -116,13 +130,9 @@ class KsefHttpClient(BaseHttpClient):
             "failed_invoice_count": payload.get("failedInvoiceCount"),
             "upo_pages": pages,
             "upo_available": bool(pages),
-            "upo_reference_number": first_page.get("referenceNumber")
-            if first_page
-            else None,
+            "upo_reference_number": first_page.get("referenceNumber") if first_page else None,
             "upo_download_url": first_page.get("downloadUrl") if first_page else None,
-            "upo_download_url_expiration_date": (
-                first_page.get("downloadUrlExpirationDate") if first_page else None
-            ),
+            "upo_download_url_expiration_date": (first_page.get("downloadUrlExpirationDate") if first_page else None),
         }
 
     @staticmethod
@@ -205,6 +215,35 @@ class KsefHttpClient(BaseHttpClient):
             "/auth/sessions/current",
             bearer_token=access_or_refresh_token,
         )
+
+    async def create_ksef_token(
+        self,
+        *,
+        access_token: str,
+        permissions: list[str],
+        description: str,
+    ) -> dict[str, Any]:
+        raw = await self.post_json(
+            "/tokens",
+            bearer_token=access_token,
+            json={
+                "permissions": permissions,
+                "description": description,
+            },
+        )
+        return self._normalize_ksef_token_create(raw)
+
+    async def get_ksef_token_status(
+        self,
+        *,
+        access_token: str,
+        reference_number: str,
+    ) -> dict[str, Any]:
+        raw = await self.get_json(
+            f"/tokens/{reference_number}",
+            bearer_token=access_token,
+        )
+        return self._normalize_ksef_token_status(raw)
 
     async def open_online_session(
         self,
