@@ -10,3 +10,6 @@ wheels/
 .venv
 .env
 ksef.db
+
+# Certificates and sensitive files
+certificates/
