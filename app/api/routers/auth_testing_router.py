@@ -137,13 +137,28 @@ async def test_step1_init_xades_signature(
             context_identifier_value=payload.context_identifier_value,
         )
 
+        # Temporary debug: save XML to file for inspection
+        with open("/tmp/debug_signed_xml.xml", "w") as f:
+            f.write(signed_xml)
+
         init_result = await auth_service.ksef_http_client.init_auth_xades_signature(
             signed_xml=signed_xml,
             verify_certificate_chain=payload.verify_certificate_chain,
         )
         return TestResult(step="step1.init_xades_signature", data=init_result)
     except Exception as e:
-        return TestResult(step="step1.init_xades_signature", data={"error": str(e), "type": type(e).__name__})
+        # Extract more detailed error information
+        error_details = {"error": str(e), "type": type(e).__name__}
+
+        # If it's a KsefApiError, add the details from the exception
+        if hasattr(e, "details") and e.details:
+            error_details["ksef_details"] = e.details
+
+        # If it's an AuthenticationError, add those details too
+        if hasattr(e, "details") and e.details:
+            error_details["auth_details"] = e.details
+
+        return TestResult(step="step1.init_xades_signature", data=error_details)
 
 
 @router.post(

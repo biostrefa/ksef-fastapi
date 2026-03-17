@@ -47,7 +47,7 @@ class AppError(Exception):
     details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        super().__init__(self.message)
+        Exception.__init__(self, self.message)
 
 
 @dataclass(slots=True)
@@ -67,11 +67,6 @@ class AuthenticationError(AppError):
 
     error_code: str = "authentication_error"
 
-    def __post_init__(self) -> None:
-        # Call parent __post_init__ manually to avoid MRO issues
-        self.message = self.message
-        Exception.__init__(self, self.message)
-
 
 @dataclass(slots=True)
 class AuthorizationError(AppError):
@@ -80,11 +75,6 @@ class AuthorizationError(AppError):
     """
 
     error_code: str = "authorization_error"
-
-    def __post_init__(self) -> None:
-        # Call parent __post_init__ manually to avoid MRO issues
-        self.message = self.message
-        Exception.__init__(self, self.message)
 
 
 @dataclass(slots=True)
@@ -110,8 +100,6 @@ class KsefApiError(AppError):
             self.details.setdefault("upstream_http_status", self.http_status)
         if self.reference_number is not None:
             self.details.setdefault("reference_number", self.reference_number)
-        # Call parent __post_init__ manually to avoid MRO issues
-        self.message = self.message
         Exception.__init__(self, self.message)
 
 

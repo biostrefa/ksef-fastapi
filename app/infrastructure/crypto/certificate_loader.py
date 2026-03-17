@@ -60,25 +60,15 @@ class CertificateLoader:
         # Backward-compatible alias; ignored if mf_public_encryption_cert_path is set.
         public_cert_path: str | None = None,
     ) -> None:
-        effective_mf_cert_path = mf_public_encryption_cert_path or public_cert_path
+        effective_mf_cert_path = mf_public_encryption_cert_path
 
         self.mf_public_encryption_cert_path = (
-            Path(effective_mf_cert_path).expanduser()
-            if effective_mf_cert_path
-            else None
+            Path(effective_mf_cert_path).expanduser() if effective_mf_cert_path else None
         )
-        self.private_key_path = (
-            Path(private_key_path).expanduser() if private_key_path else None
-        )
+        self.private_key_path = Path(private_key_path).expanduser() if private_key_path else None
         self.private_key_password = private_key_password
-        self.xades_signing_cert_path = (
-            Path(xades_signing_cert_path).expanduser()
-            if xades_signing_cert_path
-            else None
-        )
-        self.pkcs12_bundle_path = (
-            Path(pkcs12_bundle_path).expanduser() if pkcs12_bundle_path else None
-        )
+        self.xades_signing_cert_path = Path(xades_signing_cert_path).expanduser() if xades_signing_cert_path else None
+        self.pkcs12_bundle_path = Path(pkcs12_bundle_path).expanduser() if pkcs12_bundle_path else None
         self.pkcs12_password = pkcs12_password
 
     #
@@ -89,9 +79,7 @@ class CertificateLoader:
         """
         Load MF public encryption certificate bytes.
         """
-        cert_path = (
-            Path(path).expanduser() if path else self.mf_public_encryption_cert_path
-        )
+        cert_path = Path(path).expanduser() if path else self.mf_public_encryption_cert_path
         return self._read_required_file(
             cert_path,
             field_name="mf_public_encryption_cert_path",
@@ -213,9 +201,7 @@ class CertificateLoader:
             raise ValidationError(
                 message="Unable to parse private key file.",
                 details={
-                    "private_key_path": str(Path(path).expanduser())
-                    if path
-                    else self._path_str(self.private_key_path),
+                    "private_key_path": str(Path(path).expanduser()) if path else self._path_str(self.private_key_path),
                     "pem_error": str(pem_error) if pem_error else None,
                     "der_error": str(der_exc),
                 },
@@ -368,9 +354,7 @@ class CertificateLoader:
             raise ValidationError(
                 message="XAdES signing certificate does not match the configured private key.",
                 details={
-                    "xades_signing_cert_path": self._path_str(
-                        self.xades_signing_cert_path
-                    ),
+                    "xades_signing_cert_path": self._path_str(self.xades_signing_cert_path),
                     "private_key_path": self._path_str(self.private_key_path),
                 },
             )
@@ -469,13 +453,9 @@ class CertificateLoader:
     @staticmethod
     def _ensure_core_crypto_available() -> None:
         if x509 is None or hashes is None or serialization is None:
-            raise RuntimeError(
-                "The 'cryptography' package is required for certificate operations."
-            )
+            raise RuntimeError("The 'cryptography' package is required for certificate operations.")
 
     @staticmethod
     def _ensure_pkcs12_available() -> None:
         if pkcs12 is None:
-            raise RuntimeError(
-                "The 'cryptography' package with PKCS#12 support is required for PKCS#12 operations."
-            )
+            raise RuntimeError("The 'cryptography' package with PKCS#12 support is required for PKCS#12 operations.")

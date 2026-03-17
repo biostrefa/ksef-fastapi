@@ -32,6 +32,35 @@ Base URL used below: `http://127.0.0.1:8033`
 - `POST /api/testing/ksef/auth/context/revoke`
 - `POST /api/testing/ksef/auth/refresh`
 
+## Key and certificate checks
+
+Run these commands before Step 1 to verify that the configured XAdES files are valid and match:
+
+```bash
+# from project root
+CERT_PATH="./certificates/geosys.crt.pem"
+KEY_PATH="./certificates/geosys.key.pem"
+KEY_PASSWORD="mukzur-nyqpes-9rAtvy"
+
+echo "=== check files exist ==="
+ls -l "$CERT_PATH" "$KEY_PATH"
+
+echo "=== parse certificate ==="
+openssl x509 -in "$CERT_PATH" -noout -subject -issuer -dates
+
+echo "=== parse private key ==="
+openssl pkey -in "$KEY_PATH" -passin "pass:$KEY_PASSWORD" -noout
+
+echo "=== verify cert-key pair match (RSA modulus) ==="
+CERT_MD5=$(openssl x509 -noout -modulus -in "$CERT_PATH" | openssl md5 | awk '{print $2}')
+KEY_MD5=$(openssl rsa -noout -modulus -in "$KEY_PATH" -passin "pass:$KEY_PASSWORD" | openssl md5 | awk '{print $2}')
+echo "CERT_MD5=$CERT_MD5"
+echo "KEY_MD5=$KEY_MD5"
+test "$CERT_MD5" = "$KEY_MD5" && echo "MATCH: cert and key pair is valid" || echo "MISMATCH: cert and key do not match"
+```
+
+If `openssl pkey` fails with `bad decrypt` / `maybe wrong password`, the private key password is incorrect.
+
 ## Ready-to-run curl sequence
 
 ```bash

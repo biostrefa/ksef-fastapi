@@ -59,6 +59,7 @@ from app.domain.strategies.xades_auth_strategy import XadesAuthStrategy
 from app.domain.validators.invoice_validator import InvoiceValidator
 from app.infrastructure.crypto.certificate_loader import CertificateLoader
 from app.infrastructure.crypto.encryption_service import EncryptionService
+from app.infrastructure.crypto.xades_signer import XadesSigner
 from app.infrastructure.http.ksef_http_client import KsefHttpClient
 from app.infrastructure.persistence.db import AsyncSessionFactory
 from app.infrastructure.persistence.repositories.audit_log_repository import (
@@ -221,12 +222,20 @@ def get_token_auth_strategy(
 
 def get_xades_auth_strategy(
     settings: SettingsDep,
+    certificate_loader: Annotated[CertificateLoader, Depends(get_certificate_loader)],
 ) -> AuthStrategyBase:
     """
     Create XAdES-based auth strategy.
     """
+    xades_signer = XadesSigner(
+        certificate_loader=certificate_loader,
+        canonicalization_method=settings.ksef_xades_canonicalization_method,
+        digest_method=settings.ksef_xades_digest_method,
+        signature_method=settings.ksef_xades_signature_method,
+    )
     return XadesAuthStrategy(
-        signer=lambda unsigned_xml: unsigned_xml,
+        signer=xades_signer.sign_xml,
+        namespace_uri="http://ksef.mf.gov.pl/auth/token/2.0",
     )
 
 
