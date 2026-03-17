@@ -3,20 +3,30 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timezone
 import hashlib
-from xml.etree import ElementTree as ET
+import uuid
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from lxml import etree
 
 from app.core.exceptions import AuthenticationError
 from app.infrastructure.crypto.certificate_loader import CertificateLoader
 
+DS = "http://www.w3.org/2000/09/xmldsig#"
+XADES = "http://uri.etsi.org/01903/v1.3.2#"
+
+_DS = "{%s}" % DS
+_XADES = "{%s}" % XADES
+
+_NSMAP_DS = {"ds": DS}
+_NSMAP_XADES = {"xades": XADES}
+
 
 class XadesSigner:
-    """Build an enveloped XML signature for KSeF XAdES auth payloads."""
+    """Build an enveloped XAdES-BES XML signature for KSeF auth payloads."""
 
-    DS_NS = "http://www.w3.org/2000/09/xmldsig#"
-    XADES_NS = "http://uri.etsi.org/01903/v1.3.2#"
+    DS_NS = DS
+    XADES_NS = XADES
 
     def __init__(
         self,
@@ -31,6 +41,10 @@ class XadesSigner:
         self._digest_method = digest_method
         self._signature_method = signature_method
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def sign_xml(self, unsigned_xml: str) -> str:
         if not unsigned_xml.strip():
             raise AuthenticationError("Unsigned XML payload is empty")
@@ -40,23 +54,41 @@ class XadesSigner:
         certificate = self._certificate_loader.load_parsed_xades_signing_certificate()
 
         try:
-            root = ET.fromstring(unsigned_xml)
-        except ET.ParseError as exc:
+            root = etree.fromstring(unsigned_xml.encode("utf-8"))
+        except etree.XMLSyntaxError as exc:
             raise AuthenticationError("Invalid XML for XAdES signature") from exc
 
-        signature_el, signed_info_el = self._build_signature_template(root)
+        # --- unique IDs -----------------------------------------------
+        sig_id = f"ID-{uuid.uuid4()}"
+        signed_props_id = f"ID-{uuid.uuid4()}"
+        qp_id = f"ID-{uuid.uuid4()}"
 
-        # Add XAdES elements before signing and get the SignedProperties ID
-        signed_props_id = self._add_xades_elements_before_signing(signature_el, certificate)
+        # --- 1. Build Object/QualifyingProperties/SignedProperties ----
+        object_el, signed_props_el = self._build_xades_object(
+            sig_id,
+            qp_id,
+            signed_props_id,
+            certificate,
+        )
 
-        # Add the SignedProperties reference to SignedInfo before signing
-        self._add_signed_properties_reference(signed_info_el, signed_props_id)
+        # --- 2. Compute digests ---------------------------------------
+        doc_digest = self._c14n_digest(root)
+        sp_digest = self._c14n_digest(signed_props_el)
 
-        # Calculate signature after all elements are in place
-        signed_info_bytes = self._canonicalize_xml(signed_info_el)
+        # --- 3. Build SignedInfo (both references, final digests) ------
+        signed_info_el = self._build_signed_info(
+            doc_digest,
+            sp_digest,
+            signed_props_id,
+        )
 
+        # --- 4. Sign the C14N of SignedInfo ---------------------------
+        signed_info_c14n = self._c14n(signed_info_el)
         try:
-            signature_bytes = self._sign_bytes(private_key=private_key, data=signed_info_bytes)
+            sig_value = self._sign_bytes(
+                private_key=private_key,
+                data=signed_info_c14n,
+            )
         except Exception as exc:
             raise AuthenticationError(
                 f"Failed to sign XAdES XML: {exc}",
@@ -67,77 +99,188 @@ class XadesSigner:
                 },
             ) from exc
 
-        signature_value_el = signature_el.find(f"{{{self.DS_NS}}}SignatureValue")
-        if signature_value_el is None:
-            raise AuthenticationError("Unable to construct XML signature value element")
-        signature_value_el.text = base64.b64encode(signature_bytes).decode("ascii")
-
+        # --- 5. Embed certificate -------------------------------------
         cert_der = certificate.public_bytes(serialization.Encoding.DER)
         cert_b64 = base64.b64encode(cert_der).decode("ascii")
-        cert_el = signature_el.find(f"{{{self.DS_NS}}}KeyInfo/{{{self.DS_NS}}}X509Data/{{{self.DS_NS}}}X509Certificate")
-        if cert_el is None:
-            raise AuthenticationError("Unable to construct XML X509 certificate element")
-        cert_el.text = cert_b64
 
-        # Update the SignedProperties digest after all elements are finalized
-        self._update_signed_properties_digest(signature_el, signed_props_id)
+        # --- 6. Assemble ds:Signature ---------------------------------
+        signature_el = self._assemble_signature(
+            sig_id,
+            signed_info_el,
+            sig_value,
+            cert_b64,
+            object_el,
+        )
 
         root.append(signature_el)
-        return ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
+        return etree.tostring(
+            root,
+            encoding="utf-8",
+            xml_declaration=True,
+        ).decode("utf-8")
 
-    def _build_signature_template(self, root: ET.Element) -> tuple[ET.Element, ET.Element]:
-        ET.register_namespace("ds", self.DS_NS)
-        ET.register_namespace("xades", self.XADES_NS)
-
-        signature_el = ET.Element(f"{{{self.DS_NS}}}Signature")
-        signed_info_el = ET.SubElement(signature_el, f"{{{self.DS_NS}}}SignedInfo")
-
-        ET.SubElement(
-            signed_info_el,
-            f"{{{self.DS_NS}}}CanonicalizationMethod",
-            {"Algorithm": self._canonicalization_method},
-        )
-        ET.SubElement(
-            signed_info_el,
-            f"{{{self.DS_NS}}}SignatureMethod",
-            {"Algorithm": self._signature_method},
-        )
-
-        # Reference for the document content
-        reference_el = ET.SubElement(signed_info_el, f"{{{self.DS_NS}}}Reference", {"URI": ""})
-        transforms_el = ET.SubElement(reference_el, f"{{{self.DS_NS}}}Transforms")
-        ET.SubElement(
-            transforms_el,
-            f"{{{self.DS_NS}}}Transform",
-            {"Algorithm": "http://www.w3.org/2000/09/xmldsig#enveloped-signature"},
-        )
-        ET.SubElement(
-            transforms_el,
-            f"{{{self.DS_NS}}}Transform",
-            {"Algorithm": self._canonicalization_method},
-        )
-
-        ET.SubElement(
-            reference_el,
-            f"{{{self.DS_NS}}}DigestMethod",
-            {"Algorithm": self._digest_method},
-        )
-
-        digest_value = self._digest_value(self._canonicalize_xml(root), self._digest_method)
-        digest_value_el = ET.SubElement(reference_el, f"{{{self.DS_NS}}}DigestValue")
-        digest_value_el.text = digest_value
-
-        # We'll add the XAdES reference later after we have the certificate
-        ET.SubElement(signature_el, f"{{{self.DS_NS}}}SignatureValue")
-        key_info_el = ET.SubElement(signature_el, f"{{{self.DS_NS}}}KeyInfo")
-        x509_data_el = ET.SubElement(key_info_el, f"{{{self.DS_NS}}}X509Data")
-        ET.SubElement(x509_data_el, f"{{{self.DS_NS}}}X509Certificate")
-
-        return signature_el, signed_info_el
+    # ------------------------------------------------------------------
+    # C14N helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
-    def _canonicalize_xml(element: ET.Element) -> bytes:
-        return ET.tostring(element, encoding="utf-8", method="xml")
+    def _c14n(element: etree._Element) -> bytes:
+        return etree.tostring(
+            element,
+            method="c14n",
+            exclusive=False,
+            with_comments=False,
+        )
+
+    def _c14n_digest(self, element: etree._Element) -> str:
+        return self._digest_value(self._c14n(element), self._digest_method)
+
+    # ------------------------------------------------------------------
+    # XAdES Object builder
+    # ------------------------------------------------------------------
+
+    def _build_xades_object(
+        self,
+        sig_id: str,
+        qp_id: str,
+        signed_props_id: str,
+        certificate,
+    ) -> tuple[etree._Element, etree._Element]:
+        """Return (ds:Object, xades:SignedProperties)."""
+        object_el = etree.Element(_DS + "Object", nsmap=_NSMAP_DS)
+
+        qp = etree.SubElement(
+            object_el,
+            _XADES + "QualifyingProperties",
+            attrib={"Id": qp_id, "Target": f"#{sig_id}"},
+            nsmap=_NSMAP_XADES,
+        )
+
+        sp = etree.SubElement(
+            qp,
+            _XADES + "SignedProperties",
+            attrib={"Id": signed_props_id},
+        )
+        ssp = etree.SubElement(sp, _XADES + "SignedSignatureProperties")
+
+        # SigningTime
+        st = etree.SubElement(ssp, _XADES + "SigningTime")
+        st.text = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # SigningCertificate
+        sc = etree.SubElement(ssp, _XADES + "SigningCertificate")
+        cert_node = etree.SubElement(sc, _XADES + "Cert")
+
+        cd = etree.SubElement(cert_node, _XADES + "CertDigest")
+        etree.SubElement(
+            cd,
+            _DS + "DigestMethod",
+            attrib={"Algorithm": self._digest_method},
+        )
+        dv = etree.SubElement(cd, _DS + "DigestValue")
+        dv.text = base64.b64encode(
+            certificate.fingerprint(hashes.SHA256()),
+        ).decode("ascii")
+
+        # IssuerSerial
+        is_el = etree.SubElement(cert_node, _XADES + "IssuerSerial")
+        iss_name = etree.SubElement(is_el, _DS + "X509IssuerName")
+        iss_name.text = certificate.issuer.rfc4514_string()
+        iss_serial = etree.SubElement(is_el, _DS + "X509SerialNumber")
+        iss_serial.text = str(certificate.serial_number)
+
+        return object_el, sp
+
+    # ------------------------------------------------------------------
+    # SignedInfo builder
+    # ------------------------------------------------------------------
+
+    def _build_signed_info(
+        self,
+        doc_digest: str,
+        sp_digest: str,
+        signed_props_id: str,
+    ) -> etree._Element:
+        si = etree.Element(_DS + "SignedInfo", nsmap=_NSMAP_DS)
+
+        etree.SubElement(
+            si,
+            _DS + "CanonicalizationMethod",
+            attrib={"Algorithm": self._canonicalization_method},
+        )
+        etree.SubElement(
+            si,
+            _DS + "SignatureMethod",
+            attrib={"Algorithm": self._signature_method},
+        )
+
+        # Reference #1 — document body (enveloped-signature)
+        ref1 = etree.SubElement(si, _DS + "Reference", attrib={"URI": ""})
+        t1 = etree.SubElement(ref1, _DS + "Transforms")
+        etree.SubElement(
+            t1,
+            _DS + "Transform",
+            attrib={"Algorithm": "http://www.w3.org/2000/09/xmldsig#enveloped-signature"},
+        )
+        etree.SubElement(ref1, _DS + "DigestMethod", attrib={"Algorithm": self._digest_method})
+        dv1 = etree.SubElement(ref1, _DS + "DigestValue")
+        dv1.text = doc_digest
+
+        # Reference #2 — SignedProperties
+        ref2 = etree.SubElement(
+            si,
+            _DS + "Reference",
+            attrib={
+                "Type": "http://uri.etsi.org/01903#SignedProperties",
+                "URI": f"#{signed_props_id}",
+            },
+        )
+        etree.SubElement(ref2, _DS + "DigestMethod", attrib={"Algorithm": self._digest_method})
+        dv2 = etree.SubElement(ref2, _DS + "DigestValue")
+        dv2.text = sp_digest
+
+        return si
+
+    # ------------------------------------------------------------------
+    # Signature assembler
+    # ------------------------------------------------------------------
+
+    def _assemble_signature(
+        self,
+        sig_id: str,
+        signed_info_el: etree._Element,
+        sig_value: bytes,
+        cert_b64: str,
+        object_el: etree._Element,
+    ) -> etree._Element:
+        """Build the complete ds:Signature element in correct child order."""
+        sig = etree.Element(
+            _DS + "Signature",
+            attrib={"Id": sig_id},
+            nsmap=_NSMAP_DS,
+        )
+
+        # 1. SignedInfo
+        sig.append(signed_info_el)
+
+        # 2. SignatureValue
+        sv = etree.SubElement(sig, _DS + "SignatureValue")
+        sv.text = base64.b64encode(sig_value).decode("ascii")
+
+        # 3. KeyInfo
+        ki = etree.SubElement(sig, _DS + "KeyInfo")
+        x509 = etree.SubElement(ki, _DS + "X509Data")
+        x509_cert = etree.SubElement(x509, _DS + "X509Certificate")
+        x509_cert.text = cert_b64
+
+        # 4. Object (QualifyingProperties)
+        sig.append(object_el)
+
+        return sig
+
+    # ------------------------------------------------------------------
+    # Crypto helpers
+    # ------------------------------------------------------------------
 
     def _sign_bytes(self, *, private_key: object, data: bytes) -> bytes:
         hash_alg = self._hash_algorithm_from_signature_method(self._signature_method)
@@ -178,104 +321,3 @@ class XadesSigner:
             "Unsupported XAdES signature method",
             details={"signature_method": signature_method},
         )
-
-    def _add_xades_elements_before_signing(self, signature_el: ET.Element, certificate) -> str:
-        """Add XAdES elements that need to be present before signing."""
-        # Generate unique IDs
-        import uuid
-
-        signature_id = f"ID-{uuid.uuid4()}"
-        signed_props_id = f"ID-{uuid.uuid4()}"
-        qualifying_props_id = f"ID-{uuid.uuid4()}"
-
-        # Set signature ID
-        signature_el.set("Id", signature_id)
-
-        # Create Object with QualifyingProperties (but without SignedProperties content yet)
-        object_el = ET.SubElement(signature_el, f"{{{self.DS_NS}}}Object")
-        qualifying_props_el = ET.SubElement(
-            object_el,
-            f"{{{self.XADES_NS}}}QualifyingProperties",
-            {"Id": qualifying_props_id, "Target": f"#{signature_id}"},
-        )
-
-        signed_props_el = ET.SubElement(
-            qualifying_props_el, f"{{{self.XADES_NS}}}SignedProperties", {"Id": signed_props_id}
-        )
-
-        # SignedSignatureProperties
-        signed_sig_props_el = ET.SubElement(signed_props_el, f"{{{self.XADES_NS}}}SignedSignatureProperties")
-
-        # SigningTime
-        signing_time_el = ET.SubElement(signed_sig_props_el, f"{{{self.XADES_NS}}}SigningTime")
-        signing_time_el.text = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        # SigningCertificate
-        signing_cert_el = ET.SubElement(signed_sig_props_el, f"{{{self.XADES_NS}}}SigningCertificate")
-        cert_el = ET.SubElement(signing_cert_el, f"{{{self.XADES_NS}}}Cert")
-
-        # CertDigest
-        cert_digest_el = ET.SubElement(cert_el, f"{{{self.XADES_NS}}}CertDigest")
-        ET.SubElement(cert_digest_el, f"{{{self.DS_NS}}}DigestMethod", {"Algorithm": self._digest_method})
-
-        # Calculate certificate fingerprint
-        cert_fingerprint = certificate.fingerprint(hashes.SHA256())
-        digest_value_el = ET.SubElement(cert_digest_el, f"{{{self.DS_NS}}}DigestValue")
-        digest_value_el.text = base64.b64encode(cert_fingerprint).decode("ascii")
-
-        # IssuerSerial
-        issuer_serial_el = ET.SubElement(cert_el, f"{{{self.XADES_NS}}}IssuerSerial")
-        issuer_name_el = ET.SubElement(issuer_serial_el, f"{{{self.DS_NS}}}X509IssuerName")
-        issuer_name_el.text = certificate.issuer.rfc4514_string()
-
-        serial_number_el = ET.SubElement(issuer_serial_el, f"{{{self.DS_NS}}}X509SerialNumber")
-        serial_number_el.text = str(certificate.serial_number)
-
-        return signed_props_id
-
-    def _add_signed_properties_reference(self, signed_info_el: ET.Element, signed_props_id: str) -> None:
-        """Add the SignedProperties reference to SignedInfo."""
-        xades_ref_el = ET.SubElement(
-            signed_info_el,
-            f"{{{self.DS_NS}}}Reference",
-            {"Type": "http://uri.etsi.org/01903#SignedProperties", "URI": f"#{signed_props_id}"},
-        )
-        transforms_el = ET.SubElement(xades_ref_el, f"{{{self.DS_NS}}}Transforms")
-        ET.SubElement(transforms_el, f"{{{self.DS_NS}}}Transform", {"Algorithm": self._canonicalization_method})
-        ET.SubElement(xades_ref_el, f"{{{self.DS_NS}}}DigestMethod", {"Algorithm": self._digest_method})
-        # Add placeholder digest value - will be updated later
-        ET.SubElement(xades_ref_el, f"{{{self.DS_NS}}}DigestValue").text = ""
-
-    def _update_signed_properties_digest(self, signature_el: ET.Element, signed_props_id: str) -> None:
-        """Update the SignedProperties digest value."""
-        # Find the SignedProperties reference in SignedInfo
-        signed_info_el = signature_el.find(f"{{{self.DS_NS}}}SignedInfo")
-        if signed_info_el is None:
-            raise AuthenticationError("SignedInfo not found")
-
-        # Find the reference with the SignedProperties type
-        xades_ref = None
-        for ref in signed_info_el.findall(f"{{{self.DS_NS}}}Reference"):
-            ref_type = ref.get("Type")
-            if ref_type == "http://uri.etsi.org/01903#SignedProperties":
-                xades_ref = ref
-                break
-
-        if xades_ref is None:
-            raise AuthenticationError("SignedProperties reference not found")
-
-        # Find the SignedProperties element and calculate its digest
-        object_el = signature_el.find(
-            f"{{{self.DS_NS}}}Object/{{{self.XADES_NS}}}QualifyingProperties/{{{self.XADES_NS}}}SignedProperties"
-        )
-        if object_el is None:
-            raise AuthenticationError("SignedProperties element not found")
-
-        signed_props_bytes = self._canonicalize_xml(object_el)
-        signed_props_digest = self._digest_value(signed_props_bytes, self._digest_method)
-
-        # Update the digest value
-        digest_value_el = xades_ref.find(f"{{{self.DS_NS}}}DigestValue")
-        if digest_value_el is None:
-            raise AuthenticationError("DigestValue element not found in SignedProperties reference")
-        digest_value_el.text = signed_props_digest
