@@ -88,8 +88,7 @@ class XadesAuthStrategy(AuthStrategyBase):
             context_identifier_type=context_identifier_type,
             context_identifier_value=context_identifier_value,
             authorization_policy=authorization_policy,
-            subject_identifier_type=subject_identifier_type
-            or self.subject_identifier_type,
+            subject_identifier_type=subject_identifier_type or self.subject_identifier_type,
         )
 
         signed_xml = self.signer(unsigned_xml)
@@ -110,9 +109,7 @@ class XadesAuthStrategy(AuthStrategyBase):
         if not challenge:
             raise AuthenticationError("Missing challenge for XAdES authentication")
         if not context_identifier_type or not context_identifier_value:
-            raise AuthenticationError(
-                "Missing context identifier for XAdES authentication"
-            )
+            raise AuthenticationError("Missing context identifier for XAdES authentication")
         if subject_identifier_type not in {
             "certificateSubject",
             "certificateFingerprint",
@@ -126,8 +123,21 @@ class XadesAuthStrategy(AuthStrategyBase):
         self._append_text(root, "Challenge", challenge)
 
         context_identifier = SubElement(root, self._tag("ContextIdentifier"))
-        self._append_text(context_identifier, "Type", context_identifier_type)
-        self._append_text(context_identifier, "Value", context_identifier_value)
+        allowed_context_identifier_types = {"Nip", "InternalId", "NipVatUe", "PeppolId"}
+        if context_identifier_type not in allowed_context_identifier_types:
+            raise AuthenticationError(
+                "Unsupported context identifier type for XAdES authentication",
+                details={
+                    "context_identifier_type": context_identifier_type,
+                    "allowed": sorted(allowed_context_identifier_types),
+                },
+            )
+
+        self._append_text(
+            context_identifier,
+            context_identifier_type,
+            context_identifier_value,
+        )
 
         self._append_text(root, "SubjectIdentifierType", subject_identifier_type)
 
@@ -163,9 +173,7 @@ class XadesAuthStrategy(AuthStrategyBase):
 
         return {"allowedIps": allowed_ips}
 
-    def _append_authorization_policy(
-        self, root: Element, authorization_policy: dict[str, Any]
-    ) -> None:
+    def _append_authorization_policy(self, root: Element, authorization_policy: dict[str, Any]) -> None:
         policy = SubElement(root, self._tag("AuthorizationPolicy"))
 
         allowed_ips_payload = authorization_policy.get("allowedIps") or {}

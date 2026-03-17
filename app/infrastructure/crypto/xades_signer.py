@@ -7,6 +7,7 @@ import uuid
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.x509 import Certificate
 from lxml import etree
 
@@ -330,12 +331,19 @@ class XadesSigner:
             return private_key.sign(data, padding.PKCS1v15(), hash_alg)
 
         if isinstance(private_key, ec.EllipticCurvePrivateKey):
-            return private_key.sign(data, ec.ECDSA(hash_alg))
+            der_signature = private_key.sign(data, ec.ECDSA(hash_alg))
+            return self._ecdsa_der_to_xmlsig(der_signature, private_key)
 
         raise AuthenticationError(
             "Unsupported private key type",
             details={"type": type(private_key).__name__},
         )
+
+    @staticmethod
+    def _ecdsa_der_to_xmlsig(signature_der: bytes, private_key: ec.EllipticCurvePrivateKey) -> bytes:
+        r, s = decode_dss_signature(signature_der)
+        component_size = (private_key.curve.key_size + 7) // 8
+        return r.to_bytes(component_size, byteorder="big") + s.to_bytes(component_size, byteorder="big")
 
     def _resolve_signature_method(self, private_key: object) -> str:
         if self._signature_method:
