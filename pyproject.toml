@@ -17,6 +17,13 @@ dependencies = [
     "requests>=2.32.5",
     "slowapi>=0.1.9",
     "sqlalchemy[aiosqlite]>=2.0.48",
+    "cryptography>=42.0.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "keyring>=25.0.0",
+    "xmlsec>=1.3.13",
+    "qrcode[pil]>=7.4.2",
+    "pillow>=10.0.0",
 ]
 
 [dependency-groups]
@@ -24,13 +31,19 @@ dev = [
     "alembic>=1.18.4",
     "alembic-utils>=0.8.8",
     "ruff>=0.15.5",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "mypy>=1.10.0",
+    "pytest-mock>=3.14.0",
 ]
+
 
 [tool.uv]
 package = true
 
 [project.scripts]
 dev = "app.cli:run_dev"   # or "app.main:run_dev" if you put it in main.py
+ksef = "ksef_client.cli.app:app_entrypoint"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -38,4 +51,3 @@ include = ["app", "app.*"]
 
 # Optional: exclude junk dirs explicitly
 exclude = ["migrations*", "plop_templates*", "tests*", "_docs*", "_seed_data*"]
-

@@ -29,7 +29,7 @@ import asyncio
 from uuid import UUID
 
 from app.core.constants import KsefAuthMode, KsefEnvironment
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, KsefApiError
 from app.domain.models.auth import AuthChallenge, AuthContext, AuthTokens
 from app.schemas.auth import (
     AuthChallengeRequest,
@@ -80,6 +80,7 @@ class AuthService:
             environment=request.environment,
             challenge=payload["challenge"],
             challenge_timestamp=payload["timestamp"],
+            challenge_timestamp_ms=payload.get("timestamp_ms"),
         )
 
     async def redeem(self, request: AuthTokenRedeemRequest) -> AuthTokenRedeemResponse:
@@ -90,30 +91,40 @@ class AuthService:
         - redeemuje tokeny
         - zapisuje je lokalnie
         """
-        if request.auth_mode == KsefAuthMode.TOKEN:
-            init_result = await self._initialize_token_auth(
-                company_id=request.company_id,
-                environment=request.environment,
+        try:
+            if request.auth_mode == KsefAuthMode.TOKEN:
+                init_result = await self._initialize_token_auth(
+                    company_id=request.company_id,
+                    environment=request.environment,
+                )
+            elif request.auth_mode == KsefAuthMode.XADES:
+                init_result = await self._initialize_xades_auth(
+                    company_id=request.company_id,
+                    environment=request.environment,
+                )
+            else:
+                raise AuthenticationError(
+                    "Unsupported auth mode",
+                    details={"auth_mode": str(request.auth_mode)},
+                )
+
+            await self._wait_for_authentication_success(
+                reference_number=init_result["reference_number"],
+                authentication_token=init_result["authentication_token"],
             )
-        elif request.auth_mode == KsefAuthMode.XADES:
-            init_result = await self._initialize_xades_auth(
-                company_id=request.company_id,
-                environment=request.environment,
+
+            token_payload = await self.ksef_http_client.redeem_token(
+                authentication_token=init_result["authentication_token"],
             )
-        else:
+        except KsefApiError as exc:
+            ksef_details = exc.details or {}
             raise AuthenticationError(
-                "Unsupported auth mode",
-                details={"auth_mode": str(request.auth_mode)},
-            )
-
-        await self._wait_for_authentication_success(
-            reference_number=init_result["reference_number"],
-            authentication_token=init_result["authentication_token"],
-        )
-
-        token_payload = await self.ksef_http_client.redeem_token(
-            authentication_token=init_result["authentication_token"],
-        )
+                self._format_ksef_auth_error_message(ksef_details),
+                details={
+                    "auth_mode": str(request.auth_mode),
+                    "ksef_error": ksef_details,
+                },
+            ) from exc
 
         tokens = AuthTokens(
             access_token=token_payload["access_token"],
@@ -144,9 +155,7 @@ class AuthService:
             environment=request.environment,
         )
 
-        refresh_token = request.refresh_token or (
-            stored.refresh_token if stored else None
-        )
+        refresh_token = request.refresh_token or (stored.refresh_token if stored else None)
         if not refresh_token:
             raise AuthenticationError("Refresh token is missing")
 
@@ -198,16 +207,10 @@ class AuthService:
             company_id=context.company_id,
             environment=context.environment,
             auth_mode=context.auth_mode,
-            has_active_access_token=bool(
-                context.tokens and context.tokens.access_token
-            ),
+            has_active_access_token=bool(context.tokens and context.tokens.access_token),
             has_refresh_token=bool(context.tokens and context.tokens.refresh_token),
-            access_token_expires_at=context.tokens.access_token_expires_at
-            if context.tokens
-            else None,
-            refresh_token_expires_at=context.tokens.refresh_token_expires_at
-            if context.tokens
-            else None,
+            access_token_expires_at=context.tokens.access_token_expires_at if context.tokens else None,
+            refresh_token_expires_at=context.tokens.refresh_token_expires_at if context.tokens else None,
         )
 
     async def revoke(self, company_id: UUID, environment: KsefEnvironment) -> None:
@@ -227,6 +230,29 @@ class AuthService:
             company_id=company_id,
             environment=environment,
         )
+
+    @staticmethod
+    def _format_ksef_auth_error_message(details: dict) -> str:
+        method = details.get("method")
+        path = details.get("path")
+        status_code = details.get("status_code")
+        response = details.get("response") or {}
+        exception = response.get("exception") or {}
+        exception_details = exception.get("exceptionDetailList") or []
+
+        first_exception = exception_details[0] if exception_details else {}
+        exception_code = first_exception.get("exceptionCode")
+        exception_description = first_exception.get("exceptionDescription")
+
+        parts = ["KSeF authentication flow failed"]
+        if method and path and status_code:
+            parts.append(f"({method} {path} -> {status_code})")
+        if exception_code is not None:
+            parts.append(f"code={exception_code}")
+        if exception_description:
+            parts.append(str(exception_description))
+
+        return ": ".join([parts[0], " ".join(parts[1:])]) if len(parts) > 1 else parts[0]
 
     async def get_valid_access_token(
         self,
@@ -253,9 +279,7 @@ class AuthService:
             raise AuthenticationError("Token auth strategy is not configured")
 
         if not self.settings.ksef_context_identifier_value:
-            raise AuthenticationError(
-                "Missing ksef_context_identifier_value in configuration"
-            )
+            raise AuthenticationError("Missing ksef_context_identifier_value in configuration")
 
         challenge_payload = await self.ksef_http_client.get_challenge()
 
@@ -278,9 +302,7 @@ class AuthService:
             raise AuthenticationError("XAdES auth strategy is not configured")
 
         if not self.settings.ksef_context_identifier_value:
-            raise AuthenticationError(
-                "Missing ksef_context_identifier_value in configuration"
-            )
+            raise AuthenticationError("Missing ksef_context_identifier_value in configuration")
 
         challenge_payload = await self.ksef_http_client.get_challenge()
 

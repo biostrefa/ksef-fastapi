@@ -50,6 +50,7 @@ class XadesInitRequest(ApiModel):
     challenge: str
     context_identifier_type: str = "Nip"
     context_identifier_value: str
+    subject_identifier_type: str = "certificateSubject"
     verify_certificate_chain: bool | None = None
 
 
@@ -112,6 +113,7 @@ async def test_step1_challenge(
             "environment": challenge.environment.value,
             "challenge": challenge.challenge,
             "challenge_timestamp": challenge.challenge_timestamp,
+            "challenge_timestamp_ms": challenge.challenge_timestamp_ms,
         },
     )
 
@@ -135,6 +137,7 @@ async def test_step1_init_xades_signature(
             challenge=payload.challenge,
             context_identifier_type=payload.context_identifier_type,
             context_identifier_value=payload.context_identifier_value,
+            subject_identifier_type=payload.subject_identifier_type,
         )
 
         init_result = await auth_service.ksef_http_client.init_auth_xades_signature(

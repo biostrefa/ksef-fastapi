@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
-import uuid
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from cryptography.x509 import Certificate
+from cryptography.x509 import Certificate, Name, NameAttribute
+from cryptography.x509.oid import NameOID
 from lxml import etree
 
 from app.core.exceptions import AuthenticationError
@@ -44,7 +44,7 @@ class XadesSigner:
         self,
         *,
         certificate_loader: CertificateLoader,
-        canonicalization_method: str = "http://www.w3.org/2001/10/xml-exc-c14n#",
+        canonicalization_method: str = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
         digest_method: str = "http://www.w3.org/2001/04/xmlenc#sha256",
         signature_method: str | None = None,
     ) -> None:
@@ -73,13 +73,11 @@ class XadesSigner:
         if existing_signature is not None:
             raise AuthenticationError("Input XML already contains ds:Signature")
 
-        sig_id = f"SIG-{uuid.uuid4()}"
-        qp_id = f"QP-{uuid.uuid4()}"
-        signed_props_id = f"SP-{uuid.uuid4()}"
+        sig_id = "Signature"
+        signed_props_id = "SignedProperties"
 
         object_el, _signed_props_el = self._build_xades_object(
             sig_id=sig_id,
-            qp_id=qp_id,
             signed_props_id=signed_props_id,
             certificate=certificate,
         )
@@ -170,7 +168,6 @@ class XadesSigner:
         self,
         *,
         sig_id: str,
-        qp_id: str,
         signed_props_id: str,
         certificate: Certificate,
     ) -> tuple[etree._Element, etree._Element]:
@@ -180,7 +177,6 @@ class XadesSigner:
             object_el,
             _XADES + "QualifyingProperties",
             attrib={
-                "Id": qp_id,
                 "Target": f"#{sig_id}",
             },
         )
@@ -194,7 +190,7 @@ class XadesSigner:
         ssp = etree.SubElement(sp, _XADES + "SignedSignatureProperties")
 
         signing_time = etree.SubElement(ssp, _XADES + "SigningTime")
-        signing_time.text = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        signing_time.text = self._format_signing_time(datetime.now(timezone.utc) - timedelta(minutes=1))
 
         signing_certificate = etree.SubElement(ssp, _XADES + "SigningCertificate")
         cert_el = etree.SubElement(signing_certificate, _XADES + "Cert")
@@ -214,11 +210,11 @@ class XadesSigner:
         etree.SubElement(
             issuer_serial,
             _DS + "X509IssuerName",
-        ).text = certificate.issuer.rfc4514_string()
+        ).text = self._format_dotnet_issuer_name(certificate.issuer)
         etree.SubElement(
             issuer_serial,
             _DS + "X509SerialNumber",
-        ).text = str(certificate.serial_number)
+        ).text = self._format_dotnet_serial_number(certificate)
 
         return object_el, sp
 
@@ -370,6 +366,57 @@ class XadesSigner:
                 "digest_method": self._digest_method,
             },
         )
+
+    @staticmethod
+    def _format_signing_time(value: datetime) -> str:
+        iso_value = value.astimezone(timezone.utc).isoformat(timespec="microseconds")
+        if iso_value.endswith("+00:00"):
+            return f"{iso_value[:-6]}Z"
+        return iso_value
+
+    @staticmethod
+    def _format_dotnet_serial_number(certificate: Certificate) -> str:
+        serial_bytes_big_endian = certificate.serial_number.to_bytes(
+            max(1, (certificate.serial_number.bit_length() + 7) // 8),
+            byteorder="big",
+            signed=False,
+        )
+        serial_bytes_little_endian = serial_bytes_big_endian[::-1]
+        return str(int.from_bytes(serial_bytes_little_endian, byteorder="little", signed=False))
+
+    @staticmethod
+    def _format_dotnet_issuer_name(issuer: Name) -> str:
+        friendly_names = {
+            NameOID.COUNTRY_NAME: "C",
+            NameOID.ORGANIZATION_NAME: "O",
+            NameOID.ORGANIZATIONAL_UNIT_NAME: "OU",
+            NameOID.COMMON_NAME: "CN",
+            NameOID.SERIAL_NUMBER: "SERIALNUMBER",
+            NameOID.GIVEN_NAME: "G",
+            NameOID.SURNAME: "SN",
+            NameOID.USER_ID: "UID",
+            NameOID.DOMAIN_COMPONENT: "DC",
+            NameOID.LOCALITY_NAME: "L",
+            NameOID.STATE_OR_PROVINCE_NAME: "S",
+            NameOID.STREET_ADDRESS: "STREET",
+            NameOID.TITLE: "T",
+            NameOID.POSTAL_CODE: "PostalCode",
+            NameOID.BUSINESS_CATEGORY: "BusinessCategory",
+        }
+
+        parts: list[str] = []
+        for rdn in issuer.rdns:
+            for attribute in rdn:
+                parts.append(XadesSigner._format_dotnet_name_attribute(attribute, friendly_names))
+        return ", ".join(parts)
+
+    @staticmethod
+    def _format_dotnet_name_attribute(
+        attribute: NameAttribute,
+        friendly_names: dict[object, str],
+    ) -> str:
+        key = friendly_names.get(attribute.oid, attribute.oid.dotted_string)
+        return f"{key}={attribute.value}"
 
     @staticmethod
     def _validate_key_matches_signature_method(private_key: object, signature_method: str) -> None:

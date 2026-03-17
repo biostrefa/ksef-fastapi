@@ -38,6 +38,7 @@ class AuthChallengeResponse(ApiModel):
     environment: KsefEnvironment
     challenge: str
     challenge_timestamp: datetime
+    challenge_timestamp_ms: int | None = None
 
 
 class AuthTokenRedeemRequest(ApiModel):

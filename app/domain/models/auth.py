@@ -32,6 +32,7 @@ class AuthChallenge(DomainModel):
     environment: KsefEnvironment
     challenge: str
     challenge_timestamp: datetime
+    challenge_timestamp_ms: int | None = None
 
 
 class AuthTokens(DomainModel):

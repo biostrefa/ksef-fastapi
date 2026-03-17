@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 from xml.dom import minidom
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import Element, SubElement, register_namespace, tostring
 
 from app.core.constants import KsefAuthMode
 from app.core.exceptions import AuthenticationError
@@ -117,6 +117,9 @@ class XadesAuthStrategy(AuthStrategyBase):
             raise AuthenticationError(
                 "subject_identifier_type must be 'certificateSubject' or 'certificateFingerprint'"
             )
+
+        if self.namespace_uri:
+            register_namespace("", self.namespace_uri)
 
         root = Element(self._tag("AuthTokenRequest"))
 

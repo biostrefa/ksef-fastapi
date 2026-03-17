@@ -4,7 +4,7 @@
 set -e
 
 # Default KSeF test environment URL
-KSEF_URL="${KSEF_BASE_URL:-https://api-test.ksef.mf.gov.pl/v2}"
+KSEF_URL="${KSEF_BASE_URL:-https://api-demo.ksef.mf.gov.pl/v2}"
 OUTPUT_PATH="${KSEF_MF_PUBLIC_ENCRYPTION_CERT_PATH:-./certificates/mf_public_encryption_cert.pem}"
 
 echo "Downloading MF public certificate from: ${KSEF_URL}/security/public-key-certificates"
