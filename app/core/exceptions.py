@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import Any
@@ -66,6 +67,11 @@ class AuthenticationError(AppError):
 
     error_code: str = "authentication_error"
 
+    def __post_init__(self) -> None:
+        # Call parent __post_init__ manually to avoid MRO issues
+        self.message = self.message
+        Exception.__init__(self, self.message)
+
 
 @dataclass(slots=True)
 class AuthorizationError(AppError):
@@ -74,6 +80,11 @@ class AuthorizationError(AppError):
     """
 
     error_code: str = "authorization_error"
+
+    def __post_init__(self) -> None:
+        # Call parent __post_init__ manually to avoid MRO issues
+        self.message = self.message
+        Exception.__init__(self, self.message)
 
 
 @dataclass(slots=True)
@@ -99,7 +110,9 @@ class KsefApiError(AppError):
             self.details.setdefault("upstream_http_status", self.http_status)
         if self.reference_number is not None:
             self.details.setdefault("reference_number", self.reference_number)
-        super().__post_init__()
+        # Call parent __post_init__ manually to avoid MRO issues
+        self.message = self.message
+        Exception.__init__(self, self.message)
 
 
 @dataclass(slots=True)

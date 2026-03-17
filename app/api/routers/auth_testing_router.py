@@ -130,17 +130,20 @@ async def test_step1_init_xades_signature(
     if not isinstance(xades_strategy, XadesAuthStrategy):
         raise ValueError("XAdES strategy is not configured")
 
-    signed_xml = xades_strategy.build_signed_auth_request_xml(
-        challenge=payload.challenge,
-        context_identifier_type=payload.context_identifier_type,
-        context_identifier_value=payload.context_identifier_value,
-    )
+    try:
+        signed_xml = xades_strategy.build_signed_auth_request_xml(
+            challenge=payload.challenge,
+            context_identifier_type=payload.context_identifier_type,
+            context_identifier_value=payload.context_identifier_value,
+        )
 
-    init_result = await auth_service.ksef_http_client.init_auth_xades_signature(
-        signed_xml=signed_xml,
-        verify_certificate_chain=payload.verify_certificate_chain,
-    )
-    return TestResult(step="step1.init_xades_signature", data=init_result)
+        init_result = await auth_service.ksef_http_client.init_auth_xades_signature(
+            signed_xml=signed_xml,
+            verify_certificate_chain=payload.verify_certificate_chain,
+        )
+        return TestResult(step="step1.init_xades_signature", data=init_result)
+    except Exception as e:
+        return TestResult(step="step1.init_xades_signature", data={"error": str(e), "type": type(e).__name__})
 
 
 @router.post(
@@ -153,11 +156,14 @@ async def test_step1_status(
     payload: AuthStatusProbeRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> TestResult:
-    result = await auth_service.ksef_http_client.get_auth_status(
-        reference_number=payload.reference_number,
-        authentication_token=payload.authentication_token,
-    )
-    return TestResult(step="step1.status", data=result)
+    try:
+        result = await auth_service.ksef_http_client.get_auth_status(
+            reference_number=payload.reference_number,
+            authentication_token=payload.authentication_token,
+        )
+        return TestResult(step="step1.status", data=result)
+    except Exception as e:
+        return TestResult(step="step1.status", data={"error": str(e), "type": type(e).__name__})
 
 
 @router.post(
@@ -176,21 +182,25 @@ async def test_step1_redeem(
 
 @router.post(
     "/step1/redeem/xades",
-    response_model=AuthTokenRedeemResponse,
+    response_model=TestResult,
     status_code=status.HTTP_200_OK,
     summary="Step 1: full XAdES bootstrap via AuthService",
 )
 async def test_step1_redeem_xades(
     payload: ServiceContextRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> AuthTokenRedeemResponse:
-    return await auth_service.redeem(
-        AuthTokenRedeemRequest(
-            company_id=payload.company_id,
-            environment=payload.environment,
-            auth_mode=KsefAuthMode.XADES,
+) -> TestResult:
+    try:
+        result = await auth_service.redeem(
+            AuthTokenRedeemRequest(
+                company_id=payload.company_id,
+                environment=payload.environment,
+                auth_mode=KsefAuthMode.XADES,
+            )
         )
-    )
+        return TestResult(step="step1.redeem_xades", data={"result": result.model_dump()})
+    except Exception as e:
+        return TestResult(step="step1.redeem_xades", data={"error": str(e), "type": type(e).__name__})
 
 
 @router.post(

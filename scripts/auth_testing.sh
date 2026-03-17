@@ -1,40 +1,3 @@
-# KSeF Authentication Testing Guide
-
-This guide covers all implemented auth testing endpoints and includes a ready-to-run `curl` sequence for incremental debugging.
-
-Base URL used below: `http://127.0.0.1:8033`
-
-## Endpoint Map
-
-### Step 1: XAdES bootstrap (first-time)
-- `POST /api/testing/ksef/auth/step1/challenge`
-- `POST /api/testing/ksef/auth/step1/init/xades-signature`
-- `POST /api/testing/ksef/auth/step1/status`
-- `POST /api/testing/ksef/auth/step1/redeem`
-- Shortcut (orchestrated by `AuthService`): `POST /api/testing/ksef/auth/step1/redeem/xades`
-
-### Step 2: Create reusable KSeF token
-- `POST /api/testing/ksef/auth/step2/create-ksef-token`
-
-### Step 3: Wait until token is active
-- `POST /api/testing/ksef/auth/step3/token-status`
-- `POST /api/testing/ksef/auth/step3/token-status/poll`
-
-### Step 4: Daily login with KSeF token
-- `POST /api/testing/ksef/auth/step1/challenge` (new challenge)
-- `POST /api/testing/ksef/auth/step4/init/ksef-token`
-- `POST /api/testing/ksef/auth/step4/status`
-- `POST /api/testing/ksef/auth/step4/redeem`
-- Shortcut (orchestrated by `AuthService`): `POST /api/testing/ksef/auth/step4/redeem/token`
-
-### Context and maintenance
-- `POST /api/testing/ksef/auth/context`
-- `POST /api/testing/ksef/auth/context/revoke`
-- `POST /api/testing/ksef/auth/refresh`
-
-## Ready-to-run curl sequence
-
-```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -126,11 +89,3 @@ curl -sS -X POST "$BASE_URL/api/testing/ksef/auth/step4/redeem" \
   -d "{\"authentication_token\":\"$STEP4_AUTH_TEMP_TOKEN\"}"
 echo
 ```
-
-## Notes
-
-- KSeF token value returned in Step 2 is displayed once; store it securely.
-- If status is pending, repeat status checks or use the poll endpoint.
-- You can also use full-service shortcuts:
-  - `POST /api/testing/ksef/auth/step1/redeem/xades`
-  - `POST /api/testing/ksef/auth/step4/redeem/token`
