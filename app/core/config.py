@@ -65,9 +65,9 @@ class Settings(BaseSettings):
     ksef_private_key_password: str | None = None
     ksef_encryption_key_size: int = 256
     ksef_hash_algorithm: str = "SHA-256"
-    ksef_xades_canonicalization_method: str = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
+    ksef_xades_canonicalization_method: str = "http://www.w3.org/2001/10/xml-exc-c14n#"
     ksef_xades_digest_method: str = "http://www.w3.org/2001/04/xmlenc#sha256"
-    ksef_xades_signature_method: str = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+    ksef_xades_signature_method: str = "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256"
 
     class Config:
         env_file = ".env"
